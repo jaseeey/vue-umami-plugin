@@ -1,0 +1,38 @@
+{
+  "name": "@jaseeey/vue-umami-plugin",
+  "version": "0.0.1",
+  "description": "A plugin designed for Vue 3 which enables the use of Umami Analytics",
+  "license": "MIT",
+  "author": "Jason Ilicic <me@jasey.io>",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/jaseeey/vue-umami-plugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jaseeey/vue-umami-plugin/issues"
+  },
+  "homepage": "https://github.com/jaseeey/vue-umami-plugin#readme",
+  "keywords": [
+    "vue",
+    "umami"
+  ],
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/cjs/index.js",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5.4.3",
+    "vue-router": "^4.3.0"
+  },
+  "scripts": {
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build": "npm run build:esm && npm run build:cjs",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+  }
+}
