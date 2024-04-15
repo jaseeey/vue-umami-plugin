@@ -42,24 +42,13 @@ export function VueUmamiPlugin(options: UmamiPluginOptions): { install: () => vo
 }
 
 function attachUmamiToRouter(router: Router): void {
-    router.afterEach((to: RouteLocationNormalized): void => {
-        const trackPageView = (props: UmamiTrackPaveViewOptions): UmamiTrackPaveViewOptions => {
-            return { ...props, url: to.fullPath };
-        };
-        if (!window.umami) {
-            queuedEvents.push(trackPageView);
-            return;
-        }
-        window.umami.track(trackPageView);
-    });
+    router.afterEach((to: RouteLocationNormalized): void => trackUmamiPageView({ url: to.fullPath }));
 }
 
 function onDocumentReady(callback: () => void): void {
-    if (document.readyState !== 'loading') {
-        callback();
-        return;
-    }
-    document.addEventListener('DOMContentLoaded', callback);
+    document.readyState !== 'loading'
+        ? callback()
+        : document.addEventListener('DOMContentLoaded', callback);
 }
 
 function initUmamiScript(websiteID: string): void {
@@ -85,6 +74,15 @@ function processQueuedEvents(): void {
             ? window.umami.track(item)
             : window.umami.track(item.type, item.args[0]);
     }
+}
+
+export function trackUmamiPageView(options?: Partial<UmamiTrackPaveViewOptions>): void {
+    const trackPageViewOptionsFn = (props: UmamiTrackPaveViewOptions): UmamiTrackPaveViewOptions => {
+        return { ...props, ...options };
+    };
+    window.umami
+        ? window.umami.track(trackPageViewOptionsFn)
+        : queuedEvents.push(trackPageViewOptionsFn);
 }
 
 export function trackUmamiEvent(event: UmamiTrackEvent, eventParams: UmamiTrackEventParams): void {
