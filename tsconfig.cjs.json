@@ -5,5 +5,8 @@
     "outDir": "./dist/cjs",
     "declaration": true
   },
-  "include": ["src/**/*"]
+  "include": [
+    "global.d.ts",
+    "src/**/*"
+  ]
 }
