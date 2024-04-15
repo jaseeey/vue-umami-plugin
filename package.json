@@ -25,6 +25,9 @@
       "import": "./dist/esm/index.js"
     }
   },
+  "files": [
+    "dist"
+  ],
   "devDependencies": {
     "typescript": "^5.4.3",
     "vue-router": "^4.3.0"
