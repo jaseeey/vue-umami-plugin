@@ -1,6 +1,7 @@
 import { RouteLocationNormalized, Router } from 'vue-router';
 
 type UmamiPluginOptions = {
+    scriptSrc: string;
     websiteID: string;
     router?: Router;
 }
@@ -29,14 +30,14 @@ const queuedEvents: UmamiPluginQueuedEvent[] = [];
 export function VueUmamiPlugin(options: UmamiPluginOptions): { install: () => void; } {
     return {
         install: () => {
-            const { websiteID, router }: UmamiPluginOptions = options;
+            const { scriptSrc = 'https://us.umami.is/script.js', websiteID, router }: UmamiPluginOptions = options;
             if (!websiteID) {
                 return console.warn('Website ID not provided for Umami plugin, skipping.');
             }
             if (router) {
                 attachUmamiToRouter(router);
             }
-            onDocumentReady(() => initUmamiScript(websiteID));
+            onDocumentReady(() => initUmamiScript(scriptSrc, websiteID));
         }
     };
 }
@@ -51,10 +52,10 @@ function onDocumentReady(callback: () => void): void {
         : document.addEventListener('DOMContentLoaded', callback);
 }
 
-function initUmamiScript(websiteID: string): void {
+function initUmamiScript(scriptSrc: string, websiteID: string): void {
     const script: HTMLScriptElement = document.createElement('script');
     script.defer = true;
-    script.src = 'https://us.umami.is/script.js';
+    script.src = scriptSrc;
     script.onload = (): void => {
         console.log('Umami plugin loaded');
         processQueuedEvents();
