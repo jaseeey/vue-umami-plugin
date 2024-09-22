@@ -42,6 +42,7 @@ const app = createApp(App);
 
 app.use(VueUmamiPlugin, {
     websiteID: 'YOUR_UMAMI_WEBSITE_ID',
+    scriptSrc: 'https://us.umami.is/script.js', // Optional
     router
 });
 
@@ -67,6 +68,7 @@ Initialises the Umami tracking plugin with specified options.
 - **Parameters**
     - `options` (Object):
         - `websiteID` (String): The Umami website ID required for tracking.
+        - `scriptSrc` (String, optional): Custom URL for the Umami script source, default: `https://us.umami.is/script.js`
         - `router` (Router, optional): The Vue Router instance for automatic page tracking.
 
 ### `trackUmamiEvent(event, eventParams)`
