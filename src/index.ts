@@ -1,8 +1,8 @@
 import { RouteLocationNormalized, Router } from 'vue-router';
 
 type UmamiPluginOptions = {
-    scriptSrc: string;
     websiteID: string;
+    scriptSrc?: string;
     router?: Router;
 }
 
