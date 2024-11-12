@@ -33,20 +33,20 @@ npm install @jaseeey/vue-umami-plugin
 To use the Vue Umami Plugin in your project, import it and use it within your Vue application setup:
 
 ```javascript
-import { createApp } from "vue";
-import { VueUmamiPlugin } from "@jaseeey/vue-umami-plugin";
-import App from "./App.vue";
-import router from "./router";
+import { createApp } from 'vue';
+import { VueUmamiPlugin } from '@jaseeey/vue-umami-plugin';
+import App from './App.vue';
+import router from './router';
 
 const app = createApp(App);
 
 app.use(VueUmamiPlugin, {
-  websiteID: "YOUR_UMAMI_WEBSITE_ID",
-  scriptSrc: "https://us.umami.is/script.js", // Optional
+  websiteID: 'YOUR_UMAMI_WEBSITE_ID',
+  scriptSrc: 'https://us.umami.is/script.js', // Optional
   router,
 });
 
-app.use(router).mount("#app");
+app.use(router).mount('#app');
 ```
 
 ### Tracking Events
@@ -54,9 +54,9 @@ app.use(router).mount("#app");
 To track custom events:
 
 ```javascript
-import { trackUmamiEvent } from "vue-umami-plugin";
+import { trackUmamiEvent } from 'vue-umami-plugin';
 
-trackUmamiEvent("button-click", { buttonName: "subscribe" });
+trackUmamiEvent('button-click', { buttonName: 'subscribe' });
 ```
 
 ### Identifying Sessions
@@ -69,6 +69,7 @@ identifyUmamiSession({
     email: 'alice@example.com',
     name: 'Alice Smith',
 });
+```
 
 ## API Reference
 
