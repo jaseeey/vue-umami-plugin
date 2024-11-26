@@ -4,6 +4,7 @@ type UmamiPluginOptions = {
     websiteID: string;
     scriptSrc?: string;
     router?: Router;
+    allowLocalhost?: boolean;
 }
 
 type UmamiPluginQueuedEvent = {
@@ -30,6 +31,10 @@ const queuedEvents: UmamiPluginQueuedEvent[] = [];
 export function VueUmamiPlugin(options: UmamiPluginOptions): { install: () => void; } {
     return {
         install: () => {
+            if (window.location.hostname.includes('localhost') && !options.allowLocalhost) {
+                console.warn('Umami plugin not installed due to being on localhost.');
+                return;
+            }
             const { scriptSrc = 'https://us.umami.is/script.js', websiteID, router }: UmamiPluginOptions = options;
             if (!websiteID) {
                 return console.warn('Website ID not provided for Umami plugin, skipping.');
