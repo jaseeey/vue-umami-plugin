@@ -78,25 +78,25 @@ identifyUmamiSession({
 Initialises the Umami tracking plugin with specified options.
 
 - **Parameters**
-  - `options` (Object):
-    - `websiteID` (String): The Umami website ID required for tracking.
-    - `scriptSrc` (String, optional): Custom URL for the Umami script source, default: `https://us.umami.is/script.js`
-    - `router` (Router, optional): The Vue Router instance for automatic page tracking.
+    - `options` (Object):
+      - `websiteID` (String): The Umami website ID required for tracking.
+      - `scriptSrc` (String, optional): Custom URL for the Umami script source, default: `https://us.umami.is/script.js`
+      - `router` (Router, optional): The Vue Router instance for automatic page tracking.
 
 ### `trackUmamiEvent(event, eventParams)`
 
 Sends a custom tracking event to Umami.
 
 - **Parameters**
-  - `event` (String): The name of the event to track.
-  - `eventParams` (Object, optional): Additional parameters for the event; typically includes details like page URL or user actions.
+    - `event` (String): The name of the event to track.
+    - `eventParams` (Object, optional): Additional parameters for the event; typically includes details like page URL or user actions.
 
 ### `identifyUmamiSession(sessionData)`
 
 Identifies a user session with Umami.
 
 - **Parameters**
-  - `sessionData` (Object): The session data to identify.
+    - `sessionData` (Object): The session data to identify.
 
 ## Contributions
 
