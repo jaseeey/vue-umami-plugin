@@ -1,4 +1,4 @@
-import { RouteLocationNormalized, Router } from 'vue-router';
+import type { RouteLocationNormalized, Router } from 'vue-router';
 
 type UmamiPluginOptions = {
     websiteID: string;
@@ -15,6 +15,8 @@ type UmamiPluginQueuedEvent = {
 type UmamiTrackEvent = string;
 
 type UmamiTrackEventParams = object;
+
+type UmamiTrackSessionData = object;
 
 type UmamiTrackPaveViewOptions = {
     website: string;
@@ -78,7 +80,9 @@ function processQueuedEvents(): void {
         }
         typeof item === 'function'
             ? window.umami.track(item)
-            : window.umami.track(item.type, item.args[0]);
+            : item.type === 'identify'
+                ? window.umami.identify(item.args[0])
+                : window.umami.track(item.type, item.args[0]);
     }
 }
 
@@ -95,4 +99,10 @@ export function trackUmamiEvent(event: UmamiTrackEvent, eventParams: UmamiTrackE
     window.umami
         ? window.umami.track(event, eventParams)
         : queuedEvents.push({ type: event, args: [ eventParams ] });
+}
+
+export function identifyUmamiSession(sessionData: UmamiTrackSessionData): void {
+    window.umami
+        ? window.umami.identify(sessionData)
+        : queuedEvents.push({ type: 'identify', args: [ sessionData ] });
 }
