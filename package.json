@@ -1,6 +1,6 @@
 {
   "name": "@jaseeey/vue-umami-plugin",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "A plugin designed for Vue 3 which enables the use of Umami Analytics",
   "license": "MIT",
   "author": "Jason Ilicic <me@jasey.io>",
