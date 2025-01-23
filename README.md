@@ -43,7 +43,7 @@ const app = createApp(App);
 app.use(VueUmamiPlugin, {
     websiteID: 'YOUR_UMAMI_WEBSITE_ID',
     scriptSrc: 'https://us.umami.is/script.js', // Optional
-    router
+    router,
 });
 
 app.use(router).mount('#app');
@@ -59,6 +59,18 @@ import { trackUmamiEvent } from 'vue-umami-plugin';
 trackUmamiEvent('button-click', { buttonName: 'subscribe' });
 ```
 
+### Identifying Sessions
+
+```javascript
+import { identifyUmamiSession } from 'vue-umami-plugin';
+
+identifyUmamiSession({
+    userId: 'alice',
+    email: 'alice@example.com',
+    name: 'Alice Smith',
+});
+```
+
 ## API Reference
 
 ### `VueUmamiPlugin(options)`
@@ -70,6 +82,7 @@ Initialises the Umami tracking plugin with specified options.
         - `websiteID` (String): The Umami website ID required for tracking.
         - `scriptSrc` (String, optional): Custom URL for the Umami script source, default: `https://us.umami.is/script.js`
         - `router` (Router, optional): The Vue Router instance for automatic page tracking.
+        - `allowLocalhost` (Boolean, optional): Whether to allow tracking on localhost, default: `false`
 
 ### `trackUmamiEvent(event, eventParams)`
 
@@ -78,6 +91,13 @@ Sends a custom tracking event to Umami.
 - **Parameters**
     - `event` (String): The name of the event to track.
     - `eventParams` (Object, optional): Additional parameters for the event; typically includes details like page URL or user actions.
+
+### `identifyUmamiSession(sessionData)`
+
+Identifies a user session with Umami.
+
+- **Parameters**
+    - `sessionData` (Object): The session data to identify.
 
 ## Contributions
 
