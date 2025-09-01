@@ -91,6 +91,7 @@ Initialises the Umami tracking plugin with specified options.
         - `scriptSrc` (String, optional): Custom URL for the Umami script source, default: `https://us.umami.is/script.js`
         - `router` (Router, optional): The Vue Router instance for automatic page tracking.
         - `allowLocalhost` (Boolean, optional): Whether to allow tracking on localhost, default: `false`
+        - `extraDataAttributes` (Object, optional): Additional attributes to apply to the injected Umami `<script>` element (typically `data-*` attributes). These are applied after the default attributes; `data-auto-track` defaults to `"false"` but can be overridden here, while `data-website-id` is always taken from `websiteID` and cannot be overridden. Defaults to `{}`.
 
 ### `trackUmamiEvent(event, eventParams)`
 
