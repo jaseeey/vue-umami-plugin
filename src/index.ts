@@ -76,7 +76,7 @@ function initUmamiScript(scriptSrc: string, websiteID: string, extraDataAttribut
     script.setAttribute('data-auto-track', 'false');
     if (extraDataAttributes) {
         for (const [ key, value ] of Object.entries(extraDataAttributes)) {
-            if (PROTECTED_DATA_ATTRIBUTES.has(key)) {
+            if (PROTECTED_DATA_ATTRIBUTES.has(key) || !key.startsWith('data-')) {
                 continue;
             }
             script.setAttribute(key, value);

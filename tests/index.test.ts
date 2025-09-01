@@ -58,4 +58,22 @@ describe('VueUmamiPlugin', () => {
         const script = document.head.querySelector('script[src="https://us.umami.is/script.js"]') as HTMLScriptElement | null;
         expect(script?.getAttribute('data-website-id')).toBe('test-website-id');
     });
+
+    it('does not allow extraDataAttributes to specify attributes without the data- prefix', () => {
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            extraDataAttributes: {
+                'host-url': 'http://stats.no-data-prefix.com',
+                'domains': 'alpha.com,beta.org'
+            }
+        });
+
+        plugin.install();
+
+        const script = document.head.querySelector('script[src="https://us.umami.is/script.js"]') as HTMLScriptElement | null;
+        expect(script).not.toBeNull();
+        expect(script?.getAttribute('host-url')).toBeNull();
+        expect(script?.getAttribute('domains')).toBeNull();
+    });
 });
