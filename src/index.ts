@@ -5,6 +5,7 @@ type UmamiPluginOptions = {
     scriptSrc?: string;
     router?: Router;
     allowLocalhost?: boolean;
+    extraDataAttributes?: Record<string, string>;
 }
 
 type UmamiPluginQueuedEvent = {
@@ -37,14 +38,14 @@ export function VueUmamiPlugin(options: UmamiPluginOptions): { install: () => vo
                 console.warn('Umami plugin not installed due to being on localhost.');
                 return;
             }
-            const { scriptSrc = 'https://us.umami.is/script.js', websiteID, router }: UmamiPluginOptions = options;
+            const { scriptSrc = 'https://us.umami.is/script.js', websiteID, router, extraDataAttributes = {} }: UmamiPluginOptions = options;
             if (!websiteID) {
                 return console.warn('Website ID not provided for Umami plugin, skipping.');
             }
             if (router) {
                 attachUmamiToRouter(router);
             }
-            onDocumentReady(() => initUmamiScript(scriptSrc, websiteID));
+            onDocumentReady(() => initUmamiScript(scriptSrc, websiteID, extraDataAttributes));
         }
     };
 }
@@ -59,7 +60,7 @@ function onDocumentReady(callback: () => void): void {
         : document.addEventListener('DOMContentLoaded', callback);
 }
 
-function initUmamiScript(scriptSrc: string, websiteID: string): void {
+function initUmamiScript(scriptSrc: string, websiteID: string, extraDataAttributes: Record<string, string>): void {
     const script: HTMLScriptElement = document.createElement('script');
     script.defer = true;
     script.src = scriptSrc;
@@ -69,6 +70,11 @@ function initUmamiScript(scriptSrc: string, websiteID: string): void {
     };
     script.setAttribute('data-website-id', websiteID);
     script.setAttribute('data-auto-track', 'false');
+    if (extraDataAttributes) {
+        for (const [key, value] of Object.entries(extraDataAttributes)) {
+            script.setAttribute(key, value);
+        }
+    }
     document.head.appendChild(script);
 }
 
