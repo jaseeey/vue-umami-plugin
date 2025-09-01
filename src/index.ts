@@ -29,6 +29,10 @@ type UmamiTrackPaveViewOptions = {
     url?: string;
 }
 
+const PROTECTED_DATA_ATTRIBUTES: ReadonlySet<string> = new Set([
+    'data-website-id'
+]);
+
 const queuedEvents: UmamiPluginQueuedEvent[] = [];
 
 export function VueUmamiPlugin(options: UmamiPluginOptions): { install: () => void; } {
@@ -71,7 +75,10 @@ function initUmamiScript(scriptSrc: string, websiteID: string, extraDataAttribut
     script.setAttribute('data-website-id', websiteID);
     script.setAttribute('data-auto-track', 'false');
     if (extraDataAttributes) {
-        for (const [key, value] of Object.entries(extraDataAttributes)) {
+        for (const [ key, value ] of Object.entries(extraDataAttributes)) {
+            if (PROTECTED_DATA_ATTRIBUTES.has(key)) {
+                continue;
+            }
             script.setAttribute(key, value);
         }
     }
