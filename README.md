@@ -64,7 +64,7 @@ app.use(router).mount('#app');
 To track custom events:
 
 ```javascript
-import { trackUmamiEvent } from 'vue-umami-plugin';
+import { trackUmamiEvent } from '@jaseeey/vue-umami-plugin';
 
 trackUmamiEvent('button-click', { buttonName: 'subscribe' });
 ```
@@ -72,7 +72,7 @@ trackUmamiEvent('button-click', { buttonName: 'subscribe' });
 ### Identifying Sessions
 
 ```javascript
-import { identifyUmamiSession } from 'vue-umami-plugin';
+import { identifyUmamiSession } from '@jaseeey/vue-umami-plugin';
 
 identifyUmamiSession({
     userId: 'alice',
@@ -94,6 +94,13 @@ Initialises the Umami tracking plugin with specified options.
         - `router` (Router, optional): The Vue Router instance for automatic page tracking.
         - `allowLocalhost` (Boolean, optional): Whether to allow tracking on localhost, default: `false`
         - `extraDataAttributes` (Object, optional): Additional attributes to apply to the injected Umami `<script>` element (typically `data-*` attributes). These are applied after the default attributes; `data-auto-track` defaults to `"false"` but can be overridden here, while `data-website-id` is always taken from `websiteID` and cannot be overridden. Defaults to `{}`.
+
+### `trackUmamiPageView(options)`
+
+Manually tracks a page view with Umami, useful when you are not using Vue Router or need to trigger a view outside normal navigation.
+
+- **Parameters**
+    - `options` (Object, optional): A partial page view payload that can override values such as `url`, `title`, or `referrer`.
 
 ### `trackUmamiEvent(event, eventParams)`
 

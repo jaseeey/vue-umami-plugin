@@ -10,7 +10,7 @@ type UmamiPluginOptions = {
 
 type UmamiPluginQueuedEvent = {
     type: UmamiTrackEvent,
-    args: [ UmamiTrackEventParams ]
+    args: [ UmamiTrackEventParams? ]
 } | ((props: UmamiTrackPaveViewOptions) => UmamiTrackPaveViewOptions);
 
 type UmamiTrackEvent = string;
@@ -108,7 +108,7 @@ export function trackUmamiPageView(options?: Partial<UmamiTrackPaveViewOptions>)
         : queuedEvents.push(trackPageViewOptionsFn);
 }
 
-export function trackUmamiEvent(event: UmamiTrackEvent, eventParams: UmamiTrackEventParams): void {
+export function trackUmamiEvent(event: UmamiTrackEvent, eventParams?: UmamiTrackEventParams): void {
     window.umami
         ? window.umami.track(event, eventParams)
         : queuedEvents.push({ type: event, args: [ eventParams ] });
