@@ -52,9 +52,16 @@
     "vue-router": "^4.3.0"
   },
   "scripts": {
+    "clean": "node scripts/build/clean-dist.js",
+    "prebuild": "npm run clean",
     "build:esm": "tsc -p tsconfig.esm.json",
+    "prebuild:esm": "node scripts/build/clean-dist.js esm",
+    "postbuild:esm": "node scripts/build/write-dist-package-type.js esm",
     "build:cjs": "tsc -p tsconfig.cjs.json",
+    "prebuild:cjs": "node scripts/build/clean-dist.js cjs",
+    "postbuild:cjs": "node scripts/build/write-dist-package-type.js cjs",
     "build": "npm run build:esm && npm run build:cjs",
+    "prepack": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
