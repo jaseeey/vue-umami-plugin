@@ -28,6 +28,25 @@ To install and use this plugin, you can include the library via npm:
 npm install @jaseeey/vue-umami-plugin
 ```
 
+## Module Format Support (ESM + CJS)
+
+This library ships dual builds and uses conditional exports:
+
+- `dist/esm` for ESM consumers
+- `dist/cjs` for CommonJS consumers
+
+Consumers should always import from the package root. Runtime/module resolution will select the correct build automatically.
+
+```javascript
+import { VueUmamiPlugin, trackUmamiEvent } from '@jaseeey/vue-umami-plugin';
+```
+
+```javascript
+const { VueUmamiPlugin, trackUmamiEvent } = require('@jaseeey/vue-umami-plugin');
+```
+
+Avoid importing from `dist/esm` or `dist/cjs` directly.
+
 ## Usage
 
 To use the Vue Umami Plugin in your project, import it and use it within your Vue application setup:
@@ -123,6 +142,31 @@ Identifies a user session with Umami.
 - **Parameters**
     - `id` (String, optional): A custom identifier for the session.
     - `sessionData` (Object): The session data to identify.
+
+## Build and Packaging
+
+```bash
+npm run build
+```
+
+Builds both module formats:
+
+- ESM output: `dist/esm`
+- CJS output: `dist/cjs`
+
+During build, module-type markers are written to each output directory:
+
+- `dist/esm/package.json` with `{ "type": "module" }`
+- `dist/cjs/package.json` with `{ "type": "commonjs" }`
+
+For publishing and local package testing:
+
+```bash
+npm run prepack
+npm pack
+```
+
+`prepack` runs the full build automatically before `npm pack`/`npm publish`, ensuring tarballs always contain fresh ESM + CJS outputs.
 
 ## Contributions
 
