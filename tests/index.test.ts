@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { VueUmamiPlugin } from '../src/index';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { identifyUmamiSession, VueUmamiPlugin } from '../src/index';
 
 describe('VueUmamiPlugin', () => {
 
@@ -75,5 +75,81 @@ describe('VueUmamiPlugin', () => {
         expect(script).not.toBeNull();
         expect(script?.getAttribute('host-url')).toBeNull();
         expect(script?.getAttribute('domains')).toBeNull();
+    });
+});
+
+describe('identifyUmamiSession', () => {
+
+    beforeEach(() => {
+        document.head.innerHTML = '';
+        (window as any).umami = undefined;
+    });
+
+    it('calls umami.identify with session data when using one argument', () => {
+        const identify = vi.fn();
+        (window as any).umami = {
+            track: vi.fn(),
+            identify
+        };
+        const sessionData = {
+            userId: 'alice',
+            name: 'Alice Smith'
+        };
+
+        identifyUmamiSession(sessionData);
+
+        expect(identify).toHaveBeenCalledTimes(1);
+        expect(identify).toHaveBeenCalledWith(sessionData);
+    });
+
+    it('calls umami.identify with id and session data when using two arguments', () => {
+        const identify = vi.fn();
+        (window as any).umami = {
+            track: vi.fn(),
+            identify
+        };
+        const sessionData = {
+            name: 'Alice Smith'
+        };
+
+        identifyUmamiSession('alice-123', sessionData);
+
+        expect(identify).toHaveBeenCalledTimes(1);
+        expect(identify).toHaveBeenCalledWith('alice-123', sessionData);
+    });
+
+    it('replays queued identify calls for both signatures when the script loads', () => {
+        identifyUmamiSession({
+            userId: 'alice',
+            name: 'Alice Smith'
+        });
+        identifyUmamiSession('alice-123', {
+            name: 'Alice Smith'
+        });
+
+        const identify = vi.fn();
+        (window as any).umami = {
+            track: vi.fn(),
+            identify
+        };
+
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true
+        });
+        plugin.install();
+
+        const script = document.head.querySelector('script[src="https://us.umami.is/script.js"]') as HTMLScriptElement | null;
+        expect(script).not.toBeNull();
+        script?.onload?.(new Event('load'));
+
+        expect(identify).toHaveBeenCalledTimes(2);
+        expect(identify).toHaveBeenNthCalledWith(1, {
+            userId: 'alice',
+            name: 'Alice Smith'
+        });
+        expect(identify).toHaveBeenNthCalledWith(2, 'alice-123', {
+            name: 'Alice Smith'
+        });
     });
 });

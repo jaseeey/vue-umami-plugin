@@ -8,18 +8,15 @@ type UmamiPluginOptions = {
     extraDataAttributes?: Record<string, string>;
 }
 
-type UmamiPluginQueuedEvent = {
-    type: UmamiTrackEvent,
-    args: [ UmamiTrackEventParams ]
-} | ((props: UmamiTrackPaveViewOptions) => UmamiTrackPaveViewOptions);
-
 type UmamiTrackEvent = string;
 
 type UmamiTrackEventParams = object;
 
-type UmamiTrackSessionData = object;
+type UmamiTrackSessionIdentifier = string;
 
-type UmamiTrackPaveViewOptions = {
+type UmamiTrackSessionData = Record<string, unknown>;
+
+type UmamiTrackPageViewOptions = {
     website: string;
     hostname?: string;
     language?: string;
@@ -28,6 +25,15 @@ type UmamiTrackPaveViewOptions = {
     title?: string;
     url?: string;
 }
+
+type UmamiPluginQueuedEvent = {
+    kind: 'track',
+    event: UmamiTrackEvent,
+    args: [ UmamiTrackEventParams? ]
+} | {
+    kind: 'identify',
+    args: [ UmamiTrackSessionIdentifier | UmamiTrackSessionData, UmamiTrackSessionData? ]
+} | ((props: UmamiTrackPageViewOptions) => UmamiTrackPageViewOptions);
 
 const PROTECTED_DATA_ATTRIBUTES: ReadonlySet<string> = new Set([
     'data-website-id'
@@ -93,14 +99,16 @@ function processQueuedEvents(): void {
         }
         typeof item === 'function'
             ? window.umami.track(item)
-            : item.type === 'identify'
-                ? window.umami.identify(item.args[0])
-                : window.umami.track(item.type, item.args[0]);
+            : item.kind === 'identify'
+                ? typeof item.args[0] === 'string'
+                    ? window.umami.identify(item.args[0], item.args[1])
+                    : window.umami.identify(item.args[0])
+                : window.umami.track(item.event, item.args[0]);
     }
 }
 
-export function trackUmamiPageView(options?: Partial<UmamiTrackPaveViewOptions>): void {
-    const trackPageViewOptionsFn = (props: UmamiTrackPaveViewOptions): UmamiTrackPaveViewOptions => {
+export function trackUmamiPageView(options?: Partial<UmamiTrackPageViewOptions>): void {
+    const trackPageViewOptionsFn = (props: UmamiTrackPageViewOptions): UmamiTrackPageViewOptions => {
         return { ...props, ...options };
     };
     window.umami
@@ -108,14 +116,22 @@ export function trackUmamiPageView(options?: Partial<UmamiTrackPaveViewOptions>)
         : queuedEvents.push(trackPageViewOptionsFn);
 }
 
-export function trackUmamiEvent(event: UmamiTrackEvent, eventParams: UmamiTrackEventParams): void {
+export function trackUmamiEvent(event: UmamiTrackEvent, eventParams?: UmamiTrackEventParams): void {
     window.umami
         ? window.umami.track(event, eventParams)
-        : queuedEvents.push({ type: event, args: [ eventParams ] });
+        : queuedEvents.push({ kind: 'track', event, args: [ eventParams ] });
 }
 
-export function identifyUmamiSession(sessionData: UmamiTrackSessionData): void {
+export function identifyUmamiSession(sessionData: UmamiTrackSessionData): void;
+export function identifyUmamiSession(id: UmamiTrackSessionIdentifier, sessionData?: UmamiTrackSessionData): void;
+export function identifyUmamiSession(idOrSessionData: UmamiTrackSessionIdentifier | UmamiTrackSessionData, sessionData?: UmamiTrackSessionData): void {
+    if (typeof idOrSessionData === 'string') {
+        window.umami
+            ? window.umami.identify(idOrSessionData, sessionData)
+            : queuedEvents.push({ kind: 'identify', args: [ idOrSessionData, sessionData ] });
+        return;
+    }
     window.umami
-        ? window.umami.identify(sessionData)
-        : queuedEvents.push({ type: 'identify', args: [ sessionData ] });
+        ? window.umami.identify(idOrSessionData)
+        : queuedEvents.push({ kind: 'identify', args: [ idOrSessionData ] });
 }

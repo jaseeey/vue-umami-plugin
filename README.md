@@ -28,6 +28,25 @@ To install and use this plugin, you can include the library via npm:
 npm install @jaseeey/vue-umami-plugin
 ```
 
+## Module Format Support (ESM + CJS)
+
+This library ships dual builds and uses conditional exports:
+
+- `dist/esm` for ESM consumers
+- `dist/cjs` for CommonJS consumers
+
+Consumers should always import from the package root. Runtime/module resolution will select the correct build automatically.
+
+```javascript
+import { VueUmamiPlugin, trackUmamiEvent } from '@jaseeey/vue-umami-plugin';
+```
+
+```javascript
+const { VueUmamiPlugin, trackUmamiEvent } = require('@jaseeey/vue-umami-plugin');
+```
+
+Avoid importing from `dist/esm` or `dist/cjs` directly.
+
 ## Usage
 
 To use the Vue Umami Plugin in your project, import it and use it within your Vue application setup:
@@ -40,19 +59,21 @@ import router from './router';
 
 const app = createApp(App);
 
-app.use(VueUmamiPlugin, {
-    websiteID: 'YOUR_UMAMI_WEBSITE_ID',
-    scriptSrc: 'https://us.umami.is/script.js', // Optional
-    router,
-    // Optional arguments to be added to the Umami script tag, 
-    // as specified in Umami documentation, see
-    // https://umami.is/docs/tracker-configuration
-    // extraDataAttributes: {
-    //     'data-host-url': 'http://stats.mywebsite.com',
-    //     'data-domains': 'mywebsite.com,mywebsite2.com',
-    //     ... etc.
-    // }
-});
+app.use(
+    VueUmamiPlugin({
+        websiteID: 'YOUR_UMAMI_WEBSITE_ID',
+        scriptSrc: 'https://us.umami.is/script.js', // Optional
+        router,
+        // Optional arguments to be added to the Umami script tag, 
+        // as specified in Umami documentation, see
+        // https://umami.is/docs/tracker-configuration
+        // extraDataAttributes: {
+        //     'data-host-url': 'http://stats.mywebsite.com',
+        //     'data-domains': 'mywebsite.com,mywebsite2.com',
+        //     ... etc.
+        // }
+    })
+);
 
 app.use(router).mount('#app');
 ```
@@ -62,7 +83,7 @@ app.use(router).mount('#app');
 To track custom events:
 
 ```javascript
-import { trackUmamiEvent } from 'vue-umami-plugin';
+import { trackUmamiEvent } from '@jaseeey/vue-umami-plugin';
 
 trackUmamiEvent('button-click', { buttonName: 'subscribe' });
 ```
@@ -70,10 +91,15 @@ trackUmamiEvent('button-click', { buttonName: 'subscribe' });
 ### Identifying Sessions
 
 ```javascript
-import { identifyUmamiSession } from 'vue-umami-plugin';
+import { identifyUmamiSession } from '@jaseeey/vue-umami-plugin';
 
 identifyUmamiSession({
     userId: 'alice',
+    email: 'alice@example.com',
+    name: 'Alice Smith',
+});
+
+identifyUmamiSession('alice-123', {
     email: 'alice@example.com',
     name: 'Alice Smith',
 });
@@ -93,6 +119,13 @@ Initialises the Umami tracking plugin with specified options.
         - `allowLocalhost` (Boolean, optional): Whether to allow tracking on localhost, default: `false`
         - `extraDataAttributes` (Object, optional): Additional attributes to apply to the injected Umami `<script>` element (typically `data-*` attributes). These are applied after the default attributes; `data-auto-track` defaults to `"false"` but can be overridden here, while `data-website-id` is always taken from `websiteID` and cannot be overridden. Defaults to `{}`.
 
+### `trackUmamiPageView(options)`
+
+Manually tracks a page view with Umami, useful when you are not using Vue Router or need to trigger a view outside normal navigation.
+
+- **Parameters**
+    - `options` (Object, optional): A partial page view payload that can override values such as `url`, `title`, or `referrer`.
+
 ### `trackUmamiEvent(event, eventParams)`
 
 Sends a custom tracking event to Umami.
@@ -102,11 +135,38 @@ Sends a custom tracking event to Umami.
     - `eventParams` (Object, optional): Additional parameters for the event; typically includes details like page URL or user actions.
 
 ### `identifyUmamiSession(sessionData)`
+### `identifyUmamiSession(id, sessionData?)`
 
 Identifies a user session with Umami.
 
 - **Parameters**
+    - `id` (String, optional): A custom identifier for the session.
     - `sessionData` (Object): The session data to identify.
+
+## Build and Packaging
+
+```bash
+npm run build
+```
+
+Builds both module formats:
+
+- ESM output: `dist/esm`
+- CJS output: `dist/cjs`
+
+During build, module-type markers are written to each output directory:
+
+- `dist/esm/package.json` with `{ "type": "module" }`
+- `dist/cjs/package.json` with `{ "type": "commonjs" }`
+
+For publishing and local package testing:
+
+```bash
+npm run prepack
+npm pack
+```
+
+`prepack` runs the full build automatically before `npm pack`/`npm publish`, ensuring tarballs always contain fresh ESM + CJS outputs.
 
 ## Contributions
 

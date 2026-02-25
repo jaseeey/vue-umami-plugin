@@ -1,6 +1,6 @@
 {
   "name": "@jaseeey/vue-umami-plugin",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "A plugin designed for Vue 3 which enables the use of Umami Analytics",
   "license": "MIT",
   "author": "Jason Ilicic <me@jasey.io>",
@@ -21,8 +21,24 @@
   "types": "./dist/esm/index.d.ts",
   "exports": {
     ".": {
-      "require": "./dist/cjs/index.js",
-      "import": "./dist/esm/index.js"
+      "node": {
+        "import": {
+          "types": "./dist/esm/index.d.ts",
+          "default": "./dist/esm/index.js"
+        },
+        "require": {
+          "types": "./dist/cjs/index.d.ts",
+          "default": "./dist/cjs/index.js"
+        }
+      },
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
     }
   },
   "files": [
@@ -36,9 +52,16 @@
     "vue-router": "^4.3.0"
   },
   "scripts": {
+    "clean": "node scripts/build/clean-dist.js",
+    "prebuild": "npm run clean",
     "build:esm": "tsc -p tsconfig.esm.json",
+    "prebuild:esm": "node scripts/build/clean-dist.js esm",
+    "postbuild:esm": "node scripts/build/write-dist-package-type.js esm",
     "build:cjs": "tsc -p tsconfig.cjs.json",
+    "prebuild:cjs": "node scripts/build/clean-dist.js cjs",
+    "postbuild:cjs": "node scripts/build/write-dist-package-type.js cjs",
     "build": "npm run build:esm && npm run build:cjs",
+    "prepack": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
