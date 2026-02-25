@@ -79,6 +79,11 @@ identifyUmamiSession({
     email: 'alice@example.com',
     name: 'Alice Smith',
 });
+
+identifyUmamiSession('alice-123', {
+    email: 'alice@example.com',
+    name: 'Alice Smith',
+});
 ```
 
 ## API Reference
@@ -111,10 +116,12 @@ Sends a custom tracking event to Umami.
     - `eventParams` (Object, optional): Additional parameters for the event; typically includes details like page URL or user actions.
 
 ### `identifyUmamiSession(sessionData)`
+### `identifyUmamiSession(id, sessionData?)`
 
 Identifies a user session with Umami.
 
 - **Parameters**
+    - `id` (String, optional): A custom identifier for the session.
     - `sessionData` (Object): The session data to identify.
 
 ## Contributions
