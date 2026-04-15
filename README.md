@@ -220,7 +220,7 @@ app.use(
 
 ### `VueUmamiPlugin(options)`
 
-Initialises the Umami tracking plugin with specified options.
+Initializes the Umami tracking plugin with specified options.
 
 - **Parameters**
     - `options` (Object):
