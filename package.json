@@ -45,10 +45,10 @@
     "dist"
   ],
   "devDependencies": {
-    "@vitest/coverage-v8": "^1.6.0",
+    "@vitest/coverage-v8": "^4.1.4",
     "jsdom": "^24.1.0",
     "typescript": "^5.4.3",
-    "vitest": "^1.6.0",
+    "vitest": "^4.1.4",
     "vue-router": "^4.3.0"
   },
   "scripts": {
