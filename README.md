@@ -65,6 +65,8 @@ app.use(
         websiteID: 'YOUR_UMAMI_WEBSITE_ID',
         scriptSrc: 'https://us.umami.is/script.js', // Optional
         router,
+        // Optional, defaults to 100 (must be >= 1):
+        // maxQueuedEvents: 100,
         // Optionally forward any Umami tracker option to the injected
         // <script> tag. See the "Tracker Configuration" section below and
         // https://docs.umami.is/docs/tracker-configuration
@@ -226,6 +228,7 @@ Initialises the Umami tracking plugin with specified options.
         - `scriptSrc` (String, optional): Custom URL for the Umami script source, default: `https://us.umami.is/script.js`
         - `router` (Router, optional): The Vue Router instance for automatic page tracking.
         - `allowLocalhost` (Boolean, optional): Whether to allow tracking on localhost, default: `false`
+        - `maxQueuedEvents` (Number, optional): Maximum number of queued calls kept while `window.umami` is unavailable. Oldest items are dropped when the limit is reached. Default: `100`.
         - `extraDataAttributes` (Object, optional): Additional `data-*` attributes to apply to the injected Umami `<script>` element. These are applied after the default attributes; `data-auto-track` defaults to `"false"` but can be overridden here, while `data-website-id` is always taken from `websiteID` and cannot be overridden. Non-`data-*` keys are ignored. Defaults to `{}`. See [Tracker Configuration](#tracker-configuration) for the supported options and examples.
 
 ### `trackUmamiPageView(options)`

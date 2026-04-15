@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { identifyUmamiSession, VueUmamiPlugin } from '../src/index';
+import { identifyUmamiSession, trackUmamiEvent, VueUmamiPlugin } from '../src/index';
 
 describe('VueUmamiPlugin', () => {
 
@@ -151,5 +151,119 @@ describe('identifyUmamiSession', () => {
         expect(identify).toHaveBeenNthCalledWith(2, 'alice-123', {
             name: 'Alice Smith'
         });
+    });
+});
+
+describe('queued events', () => {
+
+    beforeEach(() => {
+        document.head.innerHTML = '';
+        (window as any).umami = undefined;
+    });
+
+    it('caps queued events when umami is unavailable to prevent unbounded queue growth', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true
+        });
+        plugin.install();
+
+        for (let i = 0; i < 150; i += 1) {
+            trackUmamiEvent(`event-${i}`);
+        }
+
+        const track = vi.fn();
+        (window as any).umami = {
+            track,
+            identify: vi.fn()
+        };
+
+        const script = document.head.querySelector('script[src="https://us.umami.is/script.js"]') as HTMLScriptElement | null;
+        expect(script).not.toBeNull();
+        script?.onload?.(new Event('load'));
+
+        expect(track).toHaveBeenCalledTimes(100);
+        expect(track).toHaveBeenNthCalledWith(1, 'event-50', undefined);
+        expect(track).toHaveBeenNthCalledWith(100, 'event-149', undefined);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('Umami queue limit of 100 reached'));
+        warn.mockRestore();
+    });
+
+    it('uses maxQueuedEvents when configured', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            maxQueuedEvents: 5
+        });
+        plugin.install();
+
+        for (let i = 0; i < 12; i += 1) {
+            trackUmamiEvent(`event-${i}`);
+        }
+
+        const track = vi.fn();
+        (window as any).umami = {
+            track,
+            identify: vi.fn()
+        };
+
+        const script = document.head.querySelector('script[src="https://us.umami.is/script.js"]') as HTMLScriptElement | null;
+        expect(script).not.toBeNull();
+        script?.onload?.(new Event('load'));
+
+        expect(track).toHaveBeenCalledTimes(5);
+        expect(track).toHaveBeenNthCalledWith(1, 'event-7', undefined);
+        expect(track).toHaveBeenNthCalledWith(5, 'event-11', undefined);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('Umami queue limit of 5 reached'));
+        warn.mockRestore();
+    });
+
+    it('warns and falls back to the default when maxQueuedEvents is invalid', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            maxQueuedEvents: 0
+        });
+        plugin.install();
+
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('Invalid maxQueuedEvents value'));
+        warn.mockRestore();
+    });
+
+    it('re-emits the overflow warning after a successful flush clears the queue', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            maxQueuedEvents: 2
+        });
+        plugin.install();
+
+        trackUmamiEvent('event-a');
+        trackUmamiEvent('event-b');
+        trackUmamiEvent('event-c');
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('Umami queue limit of 2 reached'));
+        const overflowCountBeforeFlush = warn.mock.calls.filter(args => typeof args[0] === 'string' && args[0].includes('Umami queue limit of 2 reached')).length;
+        expect(overflowCountBeforeFlush).toBe(1);
+
+        const track = vi.fn();
+        (window as any).umami = {
+            track,
+            identify: vi.fn()
+        };
+        const script = document.head.querySelector('script[src="https://us.umami.is/script.js"]') as HTMLScriptElement | null;
+        script?.onload?.(new Event('load'));
+        expect(track).toHaveBeenCalledTimes(2);
+
+        (window as any).umami = undefined;
+        trackUmamiEvent('event-d');
+        trackUmamiEvent('event-e');
+        trackUmamiEvent('event-f');
+        const overflowCountAfterFlush = warn.mock.calls.filter(args => typeof args[0] === 'string' && args[0].includes('Umami queue limit of 2 reached')).length;
+        expect(overflowCountAfterFlush).toBe(2);
+        warn.mockRestore();
     });
 });

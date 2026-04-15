@@ -5,6 +5,7 @@ type UmamiPluginOptions = {
     scriptSrc?: string;
     router?: Router;
     allowLocalhost?: boolean;
+    maxQueuedEvents?: number;
     extraDataAttributes?: Record<string, string>;
 }
 
@@ -39,11 +40,42 @@ const PROTECTED_DATA_ATTRIBUTES: ReadonlySet<string> = new Set([
     'data-website-id'
 ]);
 
+const DEFAULT_MAX_QUEUED_EVENTS = 100;
+
 const queuedEvents: UmamiPluginQueuedEvent[] = [];
+let hasWarnedQueueLimit = false;
+let maxQueuedEvents = DEFAULT_MAX_QUEUED_EVENTS;
+
+function setMaxQueuedEvents(value?: number): void {
+    if (typeof value === 'undefined') {
+        maxQueuedEvents = DEFAULT_MAX_QUEUED_EVENTS;
+    } else if (typeof value === 'number' && Number.isFinite(value) && value >= 1) {
+        maxQueuedEvents = Math.floor(value);
+    } else {
+        console.warn(`Invalid maxQueuedEvents value (${String(value)}); falling back to default of ${DEFAULT_MAX_QUEUED_EVENTS}.`);
+        maxQueuedEvents = DEFAULT_MAX_QUEUED_EVENTS;
+    }
+    hasWarnedQueueLimit = false;
+    while (queuedEvents.length > maxQueuedEvents) {
+        queuedEvents.shift();
+    }
+}
+
+function queueEvent(item: UmamiPluginQueuedEvent): void {
+    if (queuedEvents.length >= maxQueuedEvents) {
+        queuedEvents.shift();
+        if (!hasWarnedQueueLimit) {
+            console.warn(`Umami queue limit of ${maxQueuedEvents} reached; dropping oldest queued events until tracker is available.`);
+            hasWarnedQueueLimit = true;
+        }
+    }
+    queuedEvents.push(item);
+}
 
 export function VueUmamiPlugin(options: UmamiPluginOptions): { install: () => void; } {
     return {
         install: () => {
+            setMaxQueuedEvents(options.maxQueuedEvents);
             if (window.location.hostname.includes('localhost') && !options.allowLocalhost) {
                 console.warn('Umami plugin not installed due to being on localhost.');
                 return;
@@ -105,6 +137,7 @@ function processQueuedEvents(): void {
                     : window.umami.identify(item.args[0])
                 : window.umami.track(item.event, item.args[0]);
     }
+    hasWarnedQueueLimit = false;
 }
 
 export function trackUmamiPageView(options?: Partial<UmamiTrackPageViewOptions>): void {
@@ -113,13 +146,13 @@ export function trackUmamiPageView(options?: Partial<UmamiTrackPageViewOptions>)
     };
     window.umami
         ? window.umami.track(trackPageViewOptionsFn)
-        : queuedEvents.push(trackPageViewOptionsFn);
+        : queueEvent(trackPageViewOptionsFn);
 }
 
 export function trackUmamiEvent(event: UmamiTrackEvent, eventParams?: UmamiTrackEventParams): void {
     window.umami
         ? window.umami.track(event, eventParams)
-        : queuedEvents.push({ kind: 'track', event, args: [ eventParams ] });
+        : queueEvent({ kind: 'track', event, args: [ eventParams ] });
 }
 
 export function identifyUmamiSession(sessionData: UmamiTrackSessionData): void;
@@ -128,10 +161,10 @@ export function identifyUmamiSession(idOrSessionData: UmamiTrackSessionIdentifie
     if (typeof idOrSessionData === 'string') {
         window.umami
             ? window.umami.identify(idOrSessionData, sessionData)
-            : queuedEvents.push({ kind: 'identify', args: [ idOrSessionData, sessionData ] });
+            : queueEvent({ kind: 'identify', args: [ idOrSessionData, sessionData ] });
         return;
     }
     window.umami
         ? window.umami.identify(idOrSessionData)
-        : queuedEvents.push({ kind: 'identify', args: [ idOrSessionData ] });
+        : queueEvent({ kind: 'identify', args: [ idOrSessionData ] });
 }
