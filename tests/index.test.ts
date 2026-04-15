@@ -267,3 +267,102 @@ describe('queued events', () => {
         warn.mockRestore();
     });
 });
+
+describe('idempotent installation', () => {
+
+    beforeEach(() => {
+        document.head.innerHTML = '';
+        (window as any).umami = undefined;
+    });
+
+    it('injects the Umami script at most once across repeated installs', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true
+        });
+        plugin.install();
+        plugin.install();
+
+        const scripts = document.head.querySelectorAll('script[data-umami-plugin]');
+        expect(scripts.length).toBe(1);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('already injected'));
+        warn.mockRestore();
+    });
+
+    it('protects the plugin marker attribute from extraDataAttributes override', () => {
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            extraDataAttributes: {
+                'data-umami-plugin': 'false'
+            }
+        });
+        plugin.install();
+
+        const script = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        expect(script).not.toBeNull();
+        expect(script?.getAttribute('data-umami-plugin')).toBe('true');
+    });
+
+    it('attaches the router hook at most once per router across repeated installs', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const afterEach = vi.fn();
+        const router = { afterEach } as any;
+
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            router
+        });
+        plugin.install();
+        plugin.install();
+
+        expect(afterEach).toHaveBeenCalledTimes(1);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('already attached'));
+        warn.mockRestore();
+    });
+
+    it('removes the script marker when the script fails to load so later installs can retry', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true
+        });
+        plugin.install();
+
+        const firstScript = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        expect(firstScript).not.toBeNull();
+        firstScript?.onerror?.(new Event('error'));
+
+        expect(document.head.querySelector('script[data-umami-plugin]')).toBeNull();
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('failed to load'));
+
+        plugin.install();
+        const secondScript = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        expect(secondScript).not.toBeNull();
+        expect(secondScript).not.toBe(firstScript);
+        warn.mockRestore();
+    });
+
+    it('attaches separate hooks when installed with distinct routers', () => {
+        const afterEachA = vi.fn();
+        const afterEachB = vi.fn();
+        const routerA = { afterEach: afterEachA } as any;
+        const routerB = { afterEach: afterEachB } as any;
+
+        VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            router: routerA
+        }).install();
+        VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            router: routerB
+        }).install();
+
+        expect(afterEachA).toHaveBeenCalledTimes(1);
+        expect(afterEachB).toHaveBeenCalledTimes(1);
+    });
+});

@@ -36,13 +36,17 @@ type UmamiPluginQueuedEvent = {
     args: [ UmamiTrackSessionIdentifier | UmamiTrackSessionData, UmamiTrackSessionData? ]
 } | ((props: UmamiTrackPageViewOptions) => UmamiTrackPageViewOptions);
 
+const PLUGIN_MARKER_ATTRIBUTE = 'data-umami-plugin';
+
 const PROTECTED_DATA_ATTRIBUTES: ReadonlySet<string> = new Set([
-    'data-website-id'
+    'data-website-id',
+    PLUGIN_MARKER_ATTRIBUTE
 ]);
 
 const DEFAULT_MAX_QUEUED_EVENTS = 100;
 
 const queuedEvents: UmamiPluginQueuedEvent[] = [];
+const attachedRouters: WeakSet<Router> = new WeakSet();
 let hasWarnedQueueLimit = false;
 let maxQueuedEvents = DEFAULT_MAX_QUEUED_EVENTS;
 
@@ -93,6 +97,11 @@ export function VueUmamiPlugin(options: UmamiPluginOptions): { install: () => vo
 }
 
 function attachUmamiToRouter(router: Router): void {
+    if (attachedRouters.has(router)) {
+        console.warn('Umami plugin router hook is already attached to this router; skipping duplicate attachment.');
+        return;
+    }
+    attachedRouters.add(router);
     router.afterEach((to: RouteLocationNormalized): void => trackUmamiPageView({ url: to.fullPath }));
 }
 
@@ -103,6 +112,10 @@ function onDocumentReady(callback: () => void): void {
 }
 
 function initUmamiScript(scriptSrc: string, websiteID: string, extraDataAttributes: Record<string, string>): void {
+    if (document.head.querySelector(`script[${PLUGIN_MARKER_ATTRIBUTE}]`)) {
+        console.warn('Umami plugin script is already injected; skipping duplicate injection.');
+        return;
+    }
     const script: HTMLScriptElement = document.createElement('script');
     script.defer = true;
     script.src = scriptSrc;
@@ -110,6 +123,11 @@ function initUmamiScript(scriptSrc: string, websiteID: string, extraDataAttribut
         console.log('Umami plugin loaded');
         processQueuedEvents();
     };
+    script.onerror = (): void => {
+        console.warn('Umami plugin script failed to load; removing marker so a later install can retry.');
+        script.remove();
+    };
+    script.setAttribute(PLUGIN_MARKER_ATTRIBUTE, 'true');
     script.setAttribute('data-website-id', websiteID);
     script.setAttribute('data-auto-track', 'false');
     if (extraDataAttributes) {
