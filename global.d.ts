@@ -1,6 +1,6 @@
 export {};
 
-type UmamiTrackOptions = {
+type UmamiTrackDefaults = {
     website: string;
     hostname?: string;
     language?: string;
@@ -10,19 +10,22 @@ type UmamiTrackOptions = {
     url?: string;
 }
 
+type UmamiTrackPayload = Partial<UmamiTrackDefaults>;
+
 type UmamiTrackSessionData = Record<string, unknown>;
 
 declare global {
     interface Window {
         umami: {
             track: {
-                (trackOptions: UmamiTrackOptions): void;
-                (trackOptions: (props: UmamiTrackOptions) => UmamiTrackOptions): void;
-                (eventType: string, eventParams?: object): void;
+                (): void;
+                (payload: UmamiTrackPayload): void;
+                (eventName: string, eventData?: object): void;
+                (modifier: (props: UmamiTrackDefaults) => UmamiTrackPayload): void;
             };
             identify: {
-                (identifyOptions: UmamiTrackSessionData): void;
-                (id: string, identifyOptions?: UmamiTrackSessionData): void;
+                (sessionData: UmamiTrackSessionData): void;
+                (id: string, sessionData?: UmamiTrackSessionData): void;
             };
         };
     }
