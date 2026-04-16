@@ -264,6 +264,12 @@ describe('queued events', () => {
         trackUmamiEvent('event-f');
         const overflowCountAfterFlush = warn.mock.calls.filter(args => typeof args[0] === 'string' && args[0].includes('Umami queue limit of 2 reached')).length;
         expect(overflowCountAfterFlush).toBe(2);
+
+        (window as any).umami = {
+            track: vi.fn(),
+            identify: vi.fn()
+        };
+        script?.onload?.(new Event('load'));
         warn.mockRestore();
     });
 });
@@ -364,5 +370,178 @@ describe('idempotent installation', () => {
 
         expect(afterEachA).toHaveBeenCalledTimes(1);
         expect(afterEachB).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('autoTrack option', () => {
+
+    beforeEach(() => {
+        document.head.innerHTML = '';
+        (window as any).umami = undefined;
+    });
+
+    it('sets data-auto-track to "true" when autoTrack is true', () => {
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            autoTrack: true
+        });
+        plugin.install();
+
+        const script = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        expect(script?.getAttribute('data-auto-track')).toBe('true');
+    });
+
+    it('sets data-auto-track to "false" when autoTrack is false', () => {
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            autoTrack: false
+        });
+        plugin.install();
+
+        const script = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        expect(script?.getAttribute('data-auto-track')).toBe('false');
+    });
+
+    it('explicit autoTrack takes precedence over a conflicting extraDataAttributes value and warns', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            autoTrack: true,
+            extraDataAttributes: {
+                'data-auto-track': 'false'
+            }
+        });
+        plugin.install();
+
+        const script = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        expect(script?.getAttribute('data-auto-track')).toBe('true');
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('autoTrack option conflicts with extraDataAttributes'));
+        warn.mockRestore();
+    });
+
+    it('warns and falls back to the default when autoTrack is not a boolean', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            autoTrack: 'yes' as any
+        });
+        plugin.install();
+
+        const script = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        expect(script?.getAttribute('data-auto-track')).toBe('false');
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('Invalid autoTrack value'));
+        warn.mockRestore();
+    });
+
+    it('forwards pre-load navigations when autoTrack is true and router is provided', () => {
+        let routeHandler: ((to: any) => void) | null = null;
+        const router = {
+            afterEach: (fn: (to: any) => void) => {
+                routeHandler = fn;
+            }
+        } as any;
+
+        VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            autoTrack: true,
+            router
+        }).install();
+
+        expect(routeHandler).not.toBeNull();
+        routeHandler?.({ fullPath: '/dashboard' });
+
+        const track = vi.fn();
+        (window as any).umami = {
+            track,
+            identify: vi.fn()
+        };
+        const script = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        script?.onload?.(new Event('load'));
+
+        expect(track).toHaveBeenCalledTimes(1);
+        const flushedFn = track.mock.calls[0][0];
+        const payload = typeof flushedFn === 'function' ? flushedFn({ website: 'test-website-id' }) : flushedFn;
+        expect(payload.url).toBe('/dashboard');
+    });
+
+    it('does not forward post-load navigations when autoTrack is true', () => {
+        let routeHandler: ((to: any) => void) | null = null;
+        const router = {
+            afterEach: (fn: (to: any) => void) => {
+                routeHandler = fn;
+            }
+        } as any;
+
+        VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            autoTrack: true,
+            router
+        }).install();
+
+        const track = vi.fn();
+        (window as any).umami = {
+            track,
+            identify: vi.fn()
+        };
+        const script = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        script?.onload?.(new Event('load'));
+        expect(track).toHaveBeenCalledTimes(0);
+
+        routeHandler?.({ fullPath: '/after-load' });
+        expect(track).toHaveBeenCalledTimes(0);
+    });
+
+    it('attaches router.afterEach when autoTrack is false', () => {
+        const afterEach = vi.fn();
+        const router = { afterEach } as any;
+
+        VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            autoTrack: false,
+            router
+        }).install();
+
+        expect(afterEach).toHaveBeenCalledTimes(1);
+    });
+
+    it('still applies non-conflicting extraDataAttributes when autoTrack is explicit', () => {
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            autoTrack: true,
+            extraDataAttributes: {
+                'data-auto-track': 'false',
+                'data-domains': 'example.com'
+            }
+        });
+        plugin.install();
+
+        const script = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        expect(script?.getAttribute('data-auto-track')).toBe('true');
+        expect(script?.getAttribute('data-domains')).toBe('example.com');
+    });
+
+    it('does not warn about conflicts when autoTrack is omitted and extraDataAttributes overrides data-auto-track', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            extraDataAttributes: {
+                'data-auto-track': 'true'
+            }
+        });
+        plugin.install();
+
+        const script = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        expect(script?.getAttribute('data-auto-track')).toBe('true');
+        expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('autoTrack option conflicts'));
+        warn.mockRestore();
     });
 });

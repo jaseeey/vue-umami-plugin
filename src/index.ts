@@ -5,6 +5,7 @@ type UmamiPluginOptions = {
     scriptSrc?: string;
     router?: Router;
     allowLocalhost?: boolean;
+    autoTrack?: boolean;
     maxQueuedEvents?: number;
     extraDataAttributes?: Record<string, string>;
 }
@@ -50,7 +51,7 @@ const attachedRouters: WeakSet<Router> = new WeakSet();
 let hasWarnedQueueLimit = false;
 let maxQueuedEvents = DEFAULT_MAX_QUEUED_EVENTS;
 
-function setMaxQueuedEvents(value?: number): void {
+function setMaxQueuedEvents(value: unknown): void {
     if (typeof value === 'undefined') {
         maxQueuedEvents = DEFAULT_MAX_QUEUED_EVENTS;
     } else if (typeof value === 'number' && Number.isFinite(value) && value >= 1) {
@@ -76,6 +77,16 @@ function queueEvent(item: UmamiPluginQueuedEvent): void {
     queuedEvents.push(item);
 }
 
+function resolveAutoTrack(value: unknown): boolean | undefined {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+    if (value !== undefined) {
+        console.warn(`Invalid autoTrack value (${String(value)}); falling back to default of false.`);
+    }
+    return undefined;
+}
+
 export function VueUmamiPlugin(options: UmamiPluginOptions): { install: () => void; } {
     return {
         install: () => {
@@ -85,24 +96,30 @@ export function VueUmamiPlugin(options: UmamiPluginOptions): { install: () => vo
                 return;
             }
             const { scriptSrc = 'https://us.umami.is/script.js', websiteID, router, extraDataAttributes = {} }: UmamiPluginOptions = options;
+            const autoTrack = resolveAutoTrack(options.autoTrack);
             if (!websiteID) {
                 return console.warn('Website ID not provided for Umami plugin, skipping.');
             }
             if (router) {
-                attachUmamiToRouter(router);
+                attachUmamiToRouter(router, autoTrack === true);
             }
-            onDocumentReady(() => initUmamiScript(scriptSrc, websiteID, extraDataAttributes));
+            onDocumentReady(() => initUmamiScript(scriptSrc, websiteID, extraDataAttributes, autoTrack));
         }
     };
 }
 
-function attachUmamiToRouter(router: Router): void {
+function attachUmamiToRouter(router: Router, autoTrack: boolean): void {
     if (attachedRouters.has(router)) {
         console.warn('Umami plugin router hook is already attached to this router; skipping duplicate attachment.');
         return;
     }
     attachedRouters.add(router);
-    router.afterEach((to: RouteLocationNormalized): void => trackUmamiPageView({ url: to.fullPath }));
+    router.afterEach((to: RouteLocationNormalized): void => {
+        if (autoTrack && window.umami) {
+            return;
+        }
+        trackUmamiPageView({ url: to.fullPath });
+    });
 }
 
 function onDocumentReady(callback: () => void): void {
@@ -111,7 +128,7 @@ function onDocumentReady(callback: () => void): void {
         : document.addEventListener('DOMContentLoaded', callback);
 }
 
-function initUmamiScript(scriptSrc: string, websiteID: string, extraDataAttributes: Record<string, string>): void {
+function initUmamiScript(scriptSrc: string, websiteID: string, extraDataAttributes: Record<string, string>, autoTrack?: boolean): void {
     if (document.head.querySelector(`script[${PLUGIN_MARKER_ATTRIBUTE}]`)) {
         console.warn('Umami plugin script is already injected; skipping duplicate injection.');
         return;
@@ -129,10 +146,16 @@ function initUmamiScript(scriptSrc: string, websiteID: string, extraDataAttribut
     };
     script.setAttribute(PLUGIN_MARKER_ATTRIBUTE, 'true');
     script.setAttribute('data-website-id', websiteID);
-    script.setAttribute('data-auto-track', 'false');
+    script.setAttribute('data-auto-track', String(autoTrack ?? false));
     if (extraDataAttributes) {
+        if (autoTrack !== undefined && 'data-auto-track' in extraDataAttributes) {
+            console.warn('Umami plugin autoTrack option conflicts with extraDataAttributes["data-auto-track"]; the explicit autoTrack option takes precedence.');
+        }
         for (const [ key, value ] of Object.entries(extraDataAttributes)) {
             if (PROTECTED_DATA_ATTRIBUTES.has(key) || !key.startsWith('data-')) {
+                continue;
+            }
+            if (autoTrack !== undefined && key === 'data-auto-track') {
                 continue;
             }
             script.setAttribute(key, value);
