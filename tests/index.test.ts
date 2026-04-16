@@ -1,6 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { identifyUmamiSession, trackUmamiEvent, VueUmamiPlugin } from '../src/index';
 
+function invokeRouteHandler(routeHandler: ((to: any) => void) | null, fullPath: string): void {
+    expect(routeHandler).not.toBeNull();
+    if (!routeHandler) {
+        throw new Error('Expected router.afterEach to register a route handler.');
+    }
+    routeHandler({ fullPath });
+}
+
+function triggerScriptError(script: HTMLScriptElement | null): void {
+    expect(script).not.toBeNull();
+    const onerror = script?.onerror;
+    expect(onerror).not.toBeNull();
+    if (!onerror) {
+        throw new Error('Expected the Umami script to register an onerror handler.');
+    }
+    onerror.call(script, new Event('error'));
+}
+
+function triggerScriptLoad(script: HTMLScriptElement | null): void {
+    expect(script).not.toBeNull();
+    const onload = script?.onload;
+    expect(onload).not.toBeNull();
+    if (!onload) {
+        throw new Error('Expected the Umami script to register an onload handler.');
+    }
+    onload.call(script, new Event('load'));
+}
+
 describe('VueUmamiPlugin', () => {
 
     beforeEach(() => {
@@ -141,7 +169,7 @@ describe('identifyUmamiSession', () => {
 
         const script = document.head.querySelector('script[src="https://us.umami.is/script.js"]') as HTMLScriptElement | null;
         expect(script).not.toBeNull();
-        script?.onload?.(new Event('load'));
+        triggerScriptLoad(script);
 
         expect(identify).toHaveBeenCalledTimes(2);
         expect(identify).toHaveBeenNthCalledWith(1, {
@@ -181,7 +209,7 @@ describe('queued events', () => {
 
         const script = document.head.querySelector('script[src="https://us.umami.is/script.js"]') as HTMLScriptElement | null;
         expect(script).not.toBeNull();
-        script?.onload?.(new Event('load'));
+        triggerScriptLoad(script);
 
         expect(track).toHaveBeenCalledTimes(100);
         expect(track).toHaveBeenNthCalledWith(1, 'event-50', undefined);
@@ -211,7 +239,7 @@ describe('queued events', () => {
 
         const script = document.head.querySelector('script[src="https://us.umami.is/script.js"]') as HTMLScriptElement | null;
         expect(script).not.toBeNull();
-        script?.onload?.(new Event('load'));
+        triggerScriptLoad(script);
 
         expect(track).toHaveBeenCalledTimes(5);
         expect(track).toHaveBeenNthCalledWith(1, 'event-7', undefined);
@@ -255,7 +283,7 @@ describe('queued events', () => {
             identify: vi.fn()
         };
         const script = document.head.querySelector('script[src="https://us.umami.is/script.js"]') as HTMLScriptElement | null;
-        script?.onload?.(new Event('load'));
+        triggerScriptLoad(script);
         expect(track).toHaveBeenCalledTimes(2);
 
         (window as any).umami = undefined;
@@ -269,7 +297,7 @@ describe('queued events', () => {
             track: vi.fn(),
             identify: vi.fn()
         };
-        script?.onload?.(new Event('load'));
+        triggerScriptLoad(script);
         warn.mockRestore();
     });
 });
@@ -339,7 +367,7 @@ describe('idempotent installation', () => {
 
         const firstScript = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
         expect(firstScript).not.toBeNull();
-        firstScript?.onerror?.(new Event('error'));
+        triggerScriptError(firstScript);
 
         expect(document.head.querySelector('script[data-umami-plugin]')).toBeNull();
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('failed to load'));
@@ -348,6 +376,50 @@ describe('idempotent installation', () => {
         const secondScript = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
         expect(secondScript).not.toBeNull();
         expect(secondScript).not.toBe(firstScript);
+        warn.mockRestore();
+    });
+
+    it('reuses the existing router hook with the latest autoTrack setting after a retry', () => {
+        let routeHandler: ((to: any) => void) | null = null;
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const router = {
+            afterEach: (fn: (to: any) => void) => {
+                routeHandler = fn;
+            }
+        } as any;
+
+        VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            autoTrack: false,
+            router
+        }).install();
+
+        const firstScript = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        expect(firstScript).not.toBeNull();
+        triggerScriptError(firstScript);
+
+        VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            autoTrack: true,
+            router
+        }).install();
+
+        const track = vi.fn();
+        (window as any).umami = {
+            track,
+            identify: vi.fn()
+        };
+
+        const secondScript = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        expect(secondScript).not.toBeNull();
+        triggerScriptLoad(secondScript);
+
+        invokeRouteHandler(routeHandler, '/after-load');
+
+        expect(track).not.toHaveBeenCalled();
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('reusing the existing hook with the latest configuration'));
         warn.mockRestore();
     });
 
@@ -437,6 +509,25 @@ describe('autoTrack option', () => {
         warn.mockRestore();
     });
 
+    it('treats an invalid autoTrack value as false even when extraDataAttributes tries to override it', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            autoTrack: 'yes' as any,
+            extraDataAttributes: {
+                'data-auto-track': 'true'
+            }
+        });
+        plugin.install();
+
+        const script = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        expect(script?.getAttribute('data-auto-track')).toBe('false');
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('Invalid autoTrack value'));
+        expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('autoTrack option conflicts with extraDataAttributes'));
+        warn.mockRestore();
+    });
+
     it('forwards pre-load navigations when autoTrack is true and router is provided', () => {
         let routeHandler: ((to: any) => void) | null = null;
         const router = {
@@ -452,8 +543,7 @@ describe('autoTrack option', () => {
             router
         }).install();
 
-        expect(routeHandler).not.toBeNull();
-        routeHandler?.({ fullPath: '/dashboard' });
+        invokeRouteHandler(routeHandler, '/dashboard');
 
         const track = vi.fn();
         (window as any).umami = {
@@ -461,7 +551,7 @@ describe('autoTrack option', () => {
             identify: vi.fn()
         };
         const script = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
-        script?.onload?.(new Event('load'));
+        triggerScriptLoad(script);
 
         expect(track).toHaveBeenCalledTimes(1);
         const flushedFn = track.mock.calls[0][0];
@@ -490,10 +580,10 @@ describe('autoTrack option', () => {
             identify: vi.fn()
         };
         const script = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
-        script?.onload?.(new Event('load'));
+        triggerScriptLoad(script);
         expect(track).toHaveBeenCalledTimes(0);
 
-        routeHandler?.({ fullPath: '/after-load' });
+        invokeRouteHandler(routeHandler, '/after-load');
         expect(track).toHaveBeenCalledTimes(0);
     });
 

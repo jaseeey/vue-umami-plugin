@@ -28,6 +28,23 @@ type UmamiTrackPageViewOptions = {
     url?: string;
 }
 
+type UmamiTrackPayload = Partial<UmamiTrackPageViewOptions>;
+
+type UmamiTrackModifier = (props: UmamiTrackPageViewOptions) => UmamiTrackPayload;
+
+type UmamiTracker = {
+    track: {
+        (): void;
+        (payload: UmamiTrackPayload): void;
+        (eventName: string, eventData?: object): void;
+        (modifier: UmamiTrackModifier): void;
+    };
+    identify: {
+        (sessionData: UmamiTrackSessionData): void;
+        (id: string, sessionData?: UmamiTrackSessionData): void;
+    };
+}
+
 type UmamiPluginQueuedEvent = {
     kind: 'track',
     event: UmamiTrackEvent,
@@ -35,7 +52,23 @@ type UmamiPluginQueuedEvent = {
 } | {
     kind: 'identify',
     args: [ UmamiTrackSessionIdentifier | UmamiTrackSessionData, UmamiTrackSessionData? ]
-} | ((props: UmamiTrackPageViewOptions) => UmamiTrackPageViewOptions);
+} | UmamiTrackModifier;
+
+type UmamiRouterAttachmentState = {
+    autoTrack: boolean;
+}
+
+type ResolvedAutoTrack = {
+    value: boolean;
+    isProvided: boolean;
+    shouldWarnConflict: boolean;
+}
+
+declare global {
+    interface Window {
+        umami?: UmamiTracker;
+    }
+}
 
 const PLUGIN_MARKER_ATTRIBUTE = 'data-umami-plugin';
 
@@ -47,7 +80,7 @@ const PROTECTED_DATA_ATTRIBUTES: ReadonlySet<string> = new Set([
 const DEFAULT_MAX_QUEUED_EVENTS = 100;
 
 const queuedEvents: UmamiPluginQueuedEvent[] = [];
-const attachedRouters: WeakSet<Router> = new WeakSet();
+const attachedRouters: WeakMap<Router, UmamiRouterAttachmentState> = new WeakMap();
 let hasWarnedQueueLimit = false;
 let maxQueuedEvents = DEFAULT_MAX_QUEUED_EVENTS;
 
@@ -77,14 +110,27 @@ function queueEvent(item: UmamiPluginQueuedEvent): void {
     queuedEvents.push(item);
 }
 
-function resolveAutoTrack(value: unknown): boolean | undefined {
+function resolveAutoTrack(value: unknown): ResolvedAutoTrack {
     if (typeof value === 'boolean') {
-        return value;
+        return {
+            value,
+            isProvided: true,
+            shouldWarnConflict: true
+        };
     }
     if (value !== undefined) {
         console.warn(`Invalid autoTrack value (${String(value)}); falling back to default of false.`);
+        return {
+            value: false,
+            isProvided: true,
+            shouldWarnConflict: false
+        };
     }
-    return undefined;
+    return {
+        value: false,
+        isProvided: false,
+        shouldWarnConflict: false
+    };
 }
 
 export function VueUmamiPlugin(options: UmamiPluginOptions): { install: () => void; } {
@@ -101,7 +147,7 @@ export function VueUmamiPlugin(options: UmamiPluginOptions): { install: () => vo
                 return console.warn('Website ID not provided for Umami plugin, skipping.');
             }
             if (router) {
-                attachUmamiToRouter(router, autoTrack === true);
+                attachUmamiToRouter(router, autoTrack.value);
             }
             onDocumentReady(() => initUmamiScript(scriptSrc, websiteID, extraDataAttributes, autoTrack));
         }
@@ -109,13 +155,16 @@ export function VueUmamiPlugin(options: UmamiPluginOptions): { install: () => vo
 }
 
 function attachUmamiToRouter(router: Router, autoTrack: boolean): void {
-    if (attachedRouters.has(router)) {
-        console.warn('Umami plugin router hook is already attached to this router; skipping duplicate attachment.');
+    const existingAttachment: UmamiRouterAttachmentState | undefined = attachedRouters.get(router);
+    if (existingAttachment) {
+        existingAttachment.autoTrack = autoTrack;
+        console.warn('Umami plugin router hook is already attached to this router; reusing the existing hook with the latest configuration.');
         return;
     }
-    attachedRouters.add(router);
+    const attachment: UmamiRouterAttachmentState = { autoTrack };
+    attachedRouters.set(router, attachment);
     router.afterEach((to: RouteLocationNormalized): void => {
-        if (autoTrack && window.umami) {
+        if (attachment.autoTrack && window.umami) {
             return;
         }
         trackUmamiPageView({ url: to.fullPath });
@@ -128,7 +177,12 @@ function onDocumentReady(callback: () => void): void {
         : document.addEventListener('DOMContentLoaded', callback);
 }
 
-function initUmamiScript(scriptSrc: string, websiteID: string, extraDataAttributes: Record<string, string>, autoTrack?: boolean): void {
+function initUmamiScript(
+    scriptSrc: string,
+    websiteID: string,
+    extraDataAttributes: Record<string, string>,
+    autoTrack: ResolvedAutoTrack
+): void {
     if (document.head.querySelector(`script[${PLUGIN_MARKER_ATTRIBUTE}]`)) {
         console.warn('Umami plugin script is already injected; skipping duplicate injection.');
         return;
@@ -146,16 +200,16 @@ function initUmamiScript(scriptSrc: string, websiteID: string, extraDataAttribut
     };
     script.setAttribute(PLUGIN_MARKER_ATTRIBUTE, 'true');
     script.setAttribute('data-website-id', websiteID);
-    script.setAttribute('data-auto-track', String(autoTrack ?? false));
+    script.setAttribute('data-auto-track', String(autoTrack.value));
     if (extraDataAttributes) {
-        if (autoTrack !== undefined && 'data-auto-track' in extraDataAttributes) {
+        if (autoTrack.shouldWarnConflict && 'data-auto-track' in extraDataAttributes) {
             console.warn('Umami plugin autoTrack option conflicts with extraDataAttributes["data-auto-track"]; the explicit autoTrack option takes precedence.');
         }
         for (const [ key, value ] of Object.entries(extraDataAttributes)) {
             if (PROTECTED_DATA_ATTRIBUTES.has(key) || !key.startsWith('data-')) {
                 continue;
             }
-            if (autoTrack !== undefined && key === 'data-auto-track') {
+            if (autoTrack.isProvided && key === 'data-auto-track') {
                 continue;
             }
             script.setAttribute(key, value);
@@ -165,47 +219,54 @@ function initUmamiScript(scriptSrc: string, websiteID: string, extraDataAttribut
 }
 
 function processQueuedEvents(): void {
+    const tracker: UmamiTracker | undefined = window.umami;
+    if (!tracker) {
+        return;
+    }
     while (queuedEvents.length) {
         const item: UmamiPluginQueuedEvent | undefined = queuedEvents.shift();
         if (!item) {
             continue;
         }
         typeof item === 'function'
-            ? window.umami.track(item)
+            ? tracker.track(item)
             : item.kind === 'identify'
                 ? typeof item.args[0] === 'string'
-                    ? window.umami.identify(item.args[0], item.args[1])
-                    : window.umami.identify(item.args[0])
-                : window.umami.track(item.event, item.args[0]);
+                    ? tracker.identify(item.args[0], item.args[1])
+                    : tracker.identify(item.args[0])
+                : tracker.track(item.event, item.args[0]);
     }
     hasWarnedQueueLimit = false;
 }
 
 export function trackUmamiPageView(options?: Partial<UmamiTrackPageViewOptions>): void {
-    const trackPageViewOptionsFn = (props: UmamiTrackPageViewOptions): UmamiTrackPageViewOptions => {
+    const trackPageViewOptionsFn: UmamiTrackModifier = (props: UmamiTrackPageViewOptions): UmamiTrackPayload => {
         return { ...props, ...options };
     };
-    window.umami
-        ? window.umami.track(trackPageViewOptionsFn)
+    const tracker: UmamiTracker | undefined = window.umami;
+    tracker
+        ? tracker.track(trackPageViewOptionsFn)
         : queueEvent(trackPageViewOptionsFn);
 }
 
 export function trackUmamiEvent(event: UmamiTrackEvent, eventParams?: UmamiTrackEventParams): void {
-    window.umami
-        ? window.umami.track(event, eventParams)
+    const tracker: UmamiTracker | undefined = window.umami;
+    tracker
+        ? tracker.track(event, eventParams)
         : queueEvent({ kind: 'track', event, args: [ eventParams ] });
 }
 
 export function identifyUmamiSession(sessionData: UmamiTrackSessionData): void;
 export function identifyUmamiSession(id: UmamiTrackSessionIdentifier, sessionData?: UmamiTrackSessionData): void;
 export function identifyUmamiSession(idOrSessionData: UmamiTrackSessionIdentifier | UmamiTrackSessionData, sessionData?: UmamiTrackSessionData): void {
+    const tracker: UmamiTracker | undefined = window.umami;
     if (typeof idOrSessionData === 'string') {
-        window.umami
-            ? window.umami.identify(idOrSessionData, sessionData)
+        tracker
+            ? tracker.identify(idOrSessionData, sessionData)
             : queueEvent({ kind: 'identify', args: [ idOrSessionData, sessionData ] });
         return;
     }
-    window.umami
-        ? window.umami.identify(idOrSessionData)
+    tracker
+        ? tracker.identify(idOrSessionData)
         : queueEvent({ kind: 'identify', args: [ idOrSessionData ] });
 }

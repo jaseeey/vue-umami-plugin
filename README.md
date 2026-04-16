@@ -13,7 +13,7 @@ Given its focused nature, the plugin has limitations and may lack functionality 
 - **Automatic Page Tracking:** Automatically track page views through your Vue router.
 - **Event Tracking:** Easily track custom events with minimal configuration.
 - **Lazy Loading:** The Umami script is loaded only when the document is ready, ensuring minimal impact on performance.
-- **Queue System:** Events are queued until the Umami script is loaded, ensuring no events are lost.
+- **Queue System:** Events are queued until the Umami script is loaded, with the oldest items dropped once the configurable queue limit is reached.
 - **Full Tracker Configuration:** Forward any Umami tracker option (custom host, allowed domains, Core Web Vitals performance tracking, and more) to the injected script via `extraDataAttributes`.
 
 ## Requirements
@@ -71,6 +71,7 @@ app.use(
         // that occur before the script is ready.
         // autoTrack: false,
         // Optional, defaults to 100 (must be >= 1):
+        // oldest queued events are dropped if the limit is reached
         // maxQueuedEvents: 100,
         // Optionally forward any Umami tracker option to the injected
         // <script> tag. See the "Tracker Configuration" section below and
@@ -236,6 +237,8 @@ Initializes the Umami tracking plugin with specified options.
         - `autoTrack` (Boolean, optional): Enables Umami's built-in auto-tracking. When `true`, the injected script receives `data-auto-track="true"` and the plugin's `router.afterEach` hook only forwards navigations that occur before the Umami script finishes loading; after load, Umami's tracker takes over to avoid double-counting. Default: `false`. See [Single-page application tracking](#single-page-application-tracking) for guidance.
         - `maxQueuedEvents` (Number, optional): Maximum number of queued calls kept while `window.umami` is unavailable. Oldest items are dropped when the limit is reached. Default: `100`.
         - `extraDataAttributes` (Object, optional): Additional `data-*` attributes to apply to the injected Umami `<script>` element. These are applied after the default attributes; `data-auto-track` can be overridden here only when `autoTrack` is not explicitly set, while `data-website-id` is always taken from `websiteID` and cannot be overridden. Non-`data-*` keys are ignored. Defaults to `{}`. See [Tracker Configuration](#tracker-configuration) for the supported options and examples.
+
+Invalid `autoTrack` values are treated as `false`, and invalid `maxQueuedEvents` values fall back to the default limit of `100`.
 
 ### `trackUmamiPageView(options)`
 
