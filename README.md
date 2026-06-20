@@ -14,6 +14,7 @@ Given its focused nature, the plugin has limitations and may lack functionality 
 - **Event Tracking:** Easily track custom events with minimal configuration.
 - **Lazy Loading:** The Umami script is loaded only when the document is ready, ensuring minimal impact on performance.
 - **Queue System:** Events are queued until the Umami script is loaded, ensuring no events are lost.
+- **Full Tracker Configuration:** Forward any Umami tracker option (custom host, allowed domains, Core Web Vitals performance tracking, and more) to the injected script via `extraDataAttributes`.
 
 ## Requirements
 
@@ -64,11 +65,11 @@ app.use(
         websiteID: 'YOUR_UMAMI_WEBSITE_ID',
         scriptSrc: 'https://us.umami.is/script.js', // Optional
         router,
-        // Optional arguments to be added to the Umami script tag, 
-        // as specified in Umami documentation, see
-        // https://umami.is/docs/tracker-configuration
+        // Optionally forward any Umami tracker option to the injected
+        // <script> tag. See the "Tracker Configuration" section below and
+        // https://docs.umami.is/docs/tracker-configuration
         // extraDataAttributes: {
-        //     'data-host-url': 'http://stats.mywebsite.com',
+        //     'data-host-url': 'https://stats.mywebsite.com',
         //     'data-domains': 'mywebsite.com,mywebsite2.com',
         //     ... etc.
         // }
@@ -105,6 +106,114 @@ identifyUmamiSession('alice-123', {
 });
 ```
 
+## Tracker Configuration
+
+This plugin injects Umami's tracking `<script>` for you. Every option from the
+official [Umami tracker configuration](https://docs.umami.is/docs/tracker-configuration)
+is supported. Pass it through `extraDataAttributes` and it is applied to the
+script tag as-is.
+
+```javascript
+app.use(
+    VueUmamiPlugin({
+        websiteID: 'YOUR_UMAMI_WEBSITE_ID',
+        router,
+        extraDataAttributes: {
+            'data-host-url': 'https://stats.mywebsite.com',
+            'data-domains': 'mywebsite.com,mywebsite2.com',
+        },
+    })
+);
+```
+
+### Available attributes
+
+The most commonly used options are listed below. See the
+[official documentation](https://docs.umami.is/docs/tracker-configuration) for
+the complete list.
+
+| Attribute             | Description                                                                                  | Since   |
+|-----------------------|----------------------------------------------------------------------------------------------|---------|
+| `data-host-url`       | Send tracking data to a custom Umami host instead of where the script is served from.        | v2.0    |
+| `data-domains`        | Comma-separated list of domains the tracker is allowed to run on.                             | v2.0    |
+| `data-auto-track`     | Enable/disable Umami's built-in automatic tracking. **Defaults to `"false"`** (see below).   | v2.0    |
+| `data-tag`            | Group events under a named tag for filtering and A/B testing.                                 | v2.11   |
+| `data-exclude-search` | Omit URL search/query parameters from collected URLs.                                         | v2.11   |
+| `data-exclude-hash`   | Omit URL hash fragments from collected URLs.                                                  | v2.16   |
+| `data-do-not-track`   | Respect the visitor's browser Do Not Track setting.                                           | v2.17   |
+| `data-before-send`    | Name of a global function called to inspect, modify, or cancel each payload before it's sent. | v2.18   |
+| `data-performance`    | Collect [Core Web Vitals](https://web.dev/articles/vitals) from your visitors' browsers.     | **v3.1** |
+
+> **Note:** Values are always strings, so booleans must be passed as `'true'` or
+> `'false'`, e.g. `'data-do-not-track': 'true'`.
+
+### Plugin-specific behaviour
+
+The plugin applies a few rules to the attributes you pass:
+
+- **Only `data-*` keys are applied.** Any key that does not start with `data-`
+  is ignored.
+- **`data-website-id` cannot be overridden.** It is always derived from the
+  `websiteID` option.
+- **`data-auto-track` defaults to `"false"`.** The plugin records page views
+  itself through Vue Router, so Umami's automatic tracking is turned off to
+  avoid duplicates. You can override it (see Performance tracking below).
+
+### Performance tracking (Core Web Vitals)
+
+Since Umami **v3.1**, the tracker can automatically collect
+[Core Web Vitals](https://web.dev/articles/vitals) (LCP, CLS, INP, and more)
+from your visitors. Enable it with `data-performance`:
+
+```javascript
+app.use(
+    VueUmamiPlugin({
+        websiteID: 'YOUR_UMAMI_WEBSITE_ID',
+        // Note: no `router` here (see the caveat below).
+        extraDataAttributes: {
+            'data-auto-track': 'true',
+            'data-performance': 'true',
+        },
+    })
+);
+```
+
+> **Important:** Umami only collects Core Web Vitals while its built-in
+> automatic tracking is enabled. Because this plugin sets `data-auto-track` to
+> `"false"` by default, you must re-enable it with `'data-auto-track': 'true'`
+> for performance tracking to work.
+>
+> With auto-tracking enabled, Umami tracks page views on its own, including SPA
+> navigations, via the History API that Vue Router uses. To avoid counting every
+> page view twice, **omit the `router` option** and let Umami handle page views
+> when you turn auto-tracking on.
+
+### Modifying or filtering payloads (`data-before-send`)
+
+`data-before-send` references the **name of a function on `window`**, which
+Umami calls before every request. Return the payload to send it, or a falsy
+value to drop it:
+
+```javascript
+window.umamiBeforeSend = (type, payload) => {
+    // Drop events coming from internal/admin routes.
+    if (payload.url?.startsWith('/admin')) {
+        return false;
+    }
+    return payload;
+};
+
+app.use(
+    VueUmamiPlugin({
+        websiteID: 'YOUR_UMAMI_WEBSITE_ID',
+        router,
+        extraDataAttributes: {
+            'data-before-send': 'umamiBeforeSend',
+        },
+    })
+);
+```
+
 ## API Reference
 
 ### `VueUmamiPlugin(options)`
@@ -117,7 +226,7 @@ Initialises the Umami tracking plugin with specified options.
         - `scriptSrc` (String, optional): Custom URL for the Umami script source, default: `https://us.umami.is/script.js`
         - `router` (Router, optional): The Vue Router instance for automatic page tracking.
         - `allowLocalhost` (Boolean, optional): Whether to allow tracking on localhost, default: `false`
-        - `extraDataAttributes` (Object, optional): Additional attributes to apply to the injected Umami `<script>` element (typically `data-*` attributes). These are applied after the default attributes; `data-auto-track` defaults to `"false"` but can be overridden here, while `data-website-id` is always taken from `websiteID` and cannot be overridden. Defaults to `{}`.
+        - `extraDataAttributes` (Object, optional): Additional `data-*` attributes to apply to the injected Umami `<script>` element. These are applied after the default attributes; `data-auto-track` defaults to `"false"` but can be overridden here, while `data-website-id` is always taken from `websiteID` and cannot be overridden. Non-`data-*` keys are ignored. Defaults to `{}`. See [Tracker Configuration](#tracker-configuration) for the supported options and examples.
 
 ### `trackUmamiPageView(options)`
 
