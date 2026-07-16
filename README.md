@@ -117,6 +117,53 @@ identifyUmamiSession('alice-123', {
 });
 ```
 
+### TypeScript
+
+Plugin and helper types are exported so you can type shared config objects:
+
+```typescript
+import {
+    VueUmamiPlugin,
+    type UmamiPluginOptions,
+    type UmamiRouterLike,
+} from '@jaseeey/vue-umami-plugin';
+
+const umamiOptions: UmamiPluginOptions = {
+    websiteID: 'YOUR_UMAMI_WEBSITE_ID',
+    router,
+    autoTrack: false,
+};
+
+app.use(VueUmamiPlugin(umamiOptions));
+```
+
+#### Why `router` uses structural types (`UmamiRouterLike`)
+
+The optional `router` option is typed as `UmamiRouterLike`, not as Vue Router's
+`Router` type from the `vue-router` package. That is deliberate:
+
+- **No `vue-router` dependency.** Automatic page tracking is optional. Projects
+  that only call `trackUmamiEvent` / `trackUmamiPageView` should not need
+  `vue-router` installed for this plugin to typecheck or install cleanly.
+- **No version pinning.** Importing `Router` (even as a peer dependency) would
+  couple consumers to a specific major range of `vue-router`. Structural typing
+  only requires the small surface the plugin actually uses, so Vue Router 4.x
+  (and compatible future majors or adapters) keep working without a package
+  upgrade solely for types.
+- **Honest contract.** At runtime the plugin only calls `router.afterEach` and
+  reads `to.fullPath`. The public types describe that contract:
+
+  - `UmamiRouterLike` — object with `afterEach(handler)`
+  - `UmamiRouteLike` — object with `fullPath`
+
+  A real Vue Router instance satisfies both, so you pass `router` as usual.
+  Test doubles and custom routers that implement the same shape also work.
+
+Using a `vue-router` **peerDependency** would only signal an optional
+integration; it would not remove the need for that package to resolve when
+publishing or consuming types that re-export `Router`. Structural types avoid
+that trade-off for this narrow integration.
+
 ## Tracker Configuration
 
 This plugin injects Umami's tracking `<script>` for you. Every option from the
@@ -235,7 +282,7 @@ Initializes the Umami tracking plugin with specified options.
     - `options` (Object):
         - `websiteID` (String): The Umami website ID required for tracking.
         - `scriptSrc` (String, optional): Custom URL for the Umami script source, default: `https://us.umami.is/script.js`
-        - `router` (Object, optional): A router-compatible object that exposes `afterEach`, typically your Vue Router instance.
+        - `router` (`UmamiRouterLike`, optional): A router-compatible object that exposes `afterEach` and navigates to routes with `fullPath` (typically a Vue Router instance). Typed structurally so this package does not depend on or pin a `vue-router` version; see [Why `router` uses structural types](#why-router-uses-structural-types-umamirouterlike).
         - `allowLocalhost` (Boolean, optional): Whether to allow tracking on localhost, default: `false`
         - `autoTrack` (Boolean, optional): Enables Umami's built-in auto-tracking. When `true`, the injected script receives `data-auto-track="true"` and the plugin's `router.afterEach` hook only forwards navigations that occur before the Umami script finishes loading; after load, Umami's tracker takes over to avoid double-counting. Default: `false`. See [Single-page application tracking](#single-page-application-tracking) for guidance.
         - `debug` (Boolean, optional): Logs successful plugin load events to the console when set to `true`. Default: `false`.

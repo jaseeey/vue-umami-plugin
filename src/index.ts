@@ -1,4 +1,12 @@
-type UmamiPluginOptions = {
+/**
+ * Configuration for {@link VueUmamiPlugin}.
+ *
+ * `router` is typed as {@link UmamiRouterLike} rather than Vue Router's
+ * `Router` so this package never depends on (or pins) a specific
+ * `vue-router` version. Any object that matches the structural contract is
+ * accepted, including Vue Router instances and test doubles.
+ */
+export type UmamiPluginOptions = {
     websiteID: string;
     scriptSrc?: string;
     router?: UmamiRouterLike;
@@ -9,23 +17,37 @@ type UmamiPluginOptions = {
     extraDataAttributes?: Record<string, string>;
 }
 
-type UmamiRouteLike = {
+/**
+ * Minimal route shape used for automatic page tracking.
+ *
+ * Only `fullPath` is read when a navigation is forwarded to Umami.
+ */
+export type UmamiRouteLike = {
     fullPath: string;
 }
 
-type UmamiRouterLike = {
+/**
+ * Structural router contract for optional SPA page-view tracking.
+ *
+ * Intentionally not imported from `vue-router`: the plugin only needs
+ * `afterEach` and a route with `fullPath`. Structural typing keeps
+ * `vue-router` out of this package's dependency graph, avoids peer-dep
+ * version conflicts, and still accepts real Vue Router instances because
+ * they satisfy this shape.
+ */
+export type UmamiRouterLike = {
     afterEach: (handler: (to: UmamiRouteLike) => void) => unknown;
 }
 
-type UmamiTrackEvent = string;
+export type UmamiTrackEvent = string;
 
-type UmamiTrackEventParams = object;
+export type UmamiTrackEventParams = object;
 
-type UmamiTrackSessionIdentifier = string;
+export type UmamiTrackSessionIdentifier = string;
 
-type UmamiTrackSessionData = Record<string, unknown>;
+export type UmamiTrackSessionData = Record<string, unknown>;
 
-type UmamiTrackPageViewOptions = {
+export type UmamiTrackPageViewOptions = {
     website: string;
     hostname?: string;
     language?: string;
