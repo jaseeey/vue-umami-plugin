@@ -235,9 +235,10 @@ function resolveAutoTrack(value: unknown, extraDataAttributes: Record<string, st
  * Creates a Vue plugin that injects the Umami tracker script and optionally wires SPA page-view tracking through a
  * router.
  *
- * Installation is idempotent: repeated successful installs keep the existing configuration and log a warning. If the
- * script fails to load, a later `install()` can retry (optionally with updated options). An empty or missing
- * {@link UmamiPluginOptions.websiteID} skips installation with a warning. Tracking is skipped when
+ * Installation is idempotent: repeated successful installs keep the existing tracker configuration and log a warning,
+ * but a new router is attached so separate Vue roots can track navigation. If the script fails to load, a later
+ * `install()` can retry (optionally with updated options). An empty or missing {@link UmamiPluginOptions.websiteID}
+ * skips installation with a warning. Tracking is skipped when
  * `window.location.hostname` includes the substring `localhost` unless {@link UmamiPluginOptions.allowLocalhost} is
  * `true`.
  *
@@ -268,7 +269,11 @@ export function VueUmamiPlugin(options: UmamiPluginOptions): { install: () => vo
             if (!websiteID) {
                 return console.warn('Website ID not provided for Umami plugin, skipping.');
             }
-            if (getInstallState() !== 'idle') {
+            const currentInstallState = getInstallState();
+            if (currentInstallState !== 'idle') {
+                if (router) {
+                    attachUmamiToRouter(router);
+                }
                 console.warn('Umami plugin is already installed or pending installation; keeping the existing configuration.');
                 return;
             }

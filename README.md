@@ -290,7 +290,7 @@ Initializes the Umami tracking plugin with specified options.
 
 Invalid `autoTrack` values are treated as `false`, and invalid `maxQueuedEvents` values fall back to the default limit of `100`.
 
-Repeated successful installs are treated as no-ops and keep the existing configuration. If the Umami script fails to load, you can call `install()` again to retry with updated options.
+Repeated successful installs keep the existing tracker configuration. A later install can attach a different router for another Vue root, but it does not inject a second script or change the first tracker configuration. If the Umami script fails to load, you can call `install()` again to retry with updated options.
 
 ### `trackUmamiPageView(options)`
 

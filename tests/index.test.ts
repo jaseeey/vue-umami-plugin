@@ -543,7 +543,7 @@ describe('idempotent installation', () => {
         warn.mockRestore();
     });
 
-    it('does not attach additional router hooks after a successful install', () => {
+    it('attaches a distinct router after a successful install without changing tracker configuration', () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
         const afterEachA = vi.fn();
         const afterEachB = vi.fn();
@@ -551,18 +551,21 @@ describe('idempotent installation', () => {
         const routerB = { afterEach: afterEachB } as any;
 
         VueUmamiPlugin({
-            websiteID: 'test-website-id',
+            websiteID: 'first-website-id',
             allowLocalhost: true,
             router: routerA
         }).install();
         VueUmamiPlugin({
-            websiteID: 'test-website-id',
+            websiteID: 'second-website-id',
             allowLocalhost: true,
             router: routerB
         }).install();
 
         expect(afterEachA).toHaveBeenCalledTimes(1);
-        expect(afterEachB).not.toHaveBeenCalled();
+        expect(afterEachB).toHaveBeenCalledTimes(1);
+        const scripts = document.head.querySelectorAll('script[data-umami-plugin]');
+        expect(scripts).toHaveLength(1);
+        expect(scripts[0]?.getAttribute('data-website-id')).toBe('first-website-id');
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('keeping the existing configuration'));
         warn.mockRestore();
     });
