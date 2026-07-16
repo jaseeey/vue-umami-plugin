@@ -70,6 +70,9 @@ app.use(
         // the plugin's router.afterEach hook still covers navigations
         // that occur before the script is ready.
         // autoTrack: false,
+        // Optional, defaults to false. When true, logs successful
+        // plugin load events to the console.
+        // debug: false,
         // Optional, defaults to 100 (must be >= 1):
         // oldest queued events are dropped if the limit is reached
         // maxQueuedEvents: 100,
@@ -232,13 +235,16 @@ Initializes the Umami tracking plugin with specified options.
     - `options` (Object):
         - `websiteID` (String): The Umami website ID required for tracking.
         - `scriptSrc` (String, optional): Custom URL for the Umami script source, default: `https://us.umami.is/script.js`
-        - `router` (Router, optional): The Vue Router instance for automatic page tracking.
+        - `router` (Object, optional): A router-compatible object that exposes `afterEach`, typically your Vue Router instance.
         - `allowLocalhost` (Boolean, optional): Whether to allow tracking on localhost, default: `false`
         - `autoTrack` (Boolean, optional): Enables Umami's built-in auto-tracking. When `true`, the injected script receives `data-auto-track="true"` and the plugin's `router.afterEach` hook only forwards navigations that occur before the Umami script finishes loading; after load, Umami's tracker takes over to avoid double-counting. Default: `false`. See [Single-page application tracking](#single-page-application-tracking) for guidance.
+        - `debug` (Boolean, optional): Logs successful plugin load events to the console when set to `true`. Default: `false`.
         - `maxQueuedEvents` (Number, optional): Maximum number of queued calls kept while `window.umami` is unavailable. Oldest items are dropped when the limit is reached. Default: `100`.
         - `extraDataAttributes` (Object, optional): Additional `data-*` attributes to apply to the injected Umami `<script>` element. These are applied after the default attributes; `data-auto-track` can be overridden here only when `autoTrack` is not explicitly set, while `data-website-id` is always taken from `websiteID` and cannot be overridden. Non-`data-*` keys are ignored. Defaults to `{}`. See [Tracker Configuration](#tracker-configuration) for the supported options and examples.
 
 Invalid `autoTrack` values are treated as `false`, and invalid `maxQueuedEvents` values fall back to the default limit of `100`.
+
+Repeated successful installs are treated as no-ops and keep the existing configuration. If the Umami script fails to load, you can call `install()` again to retry with updated options.
 
 ### `trackUmamiPageView(options)`
 

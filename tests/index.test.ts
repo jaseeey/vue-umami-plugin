@@ -104,6 +104,37 @@ describe('VueUmamiPlugin', () => {
         expect(script?.getAttribute('host-url')).toBeNull();
         expect(script?.getAttribute('domains')).toBeNull();
     });
+
+    it('does not log successful script loads by default', () => {
+        const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true
+        });
+        plugin.install();
+
+        const script = document.head.querySelector('script[src="https://us.umami.is/script.js"]') as HTMLScriptElement | null;
+        triggerScriptLoad(script);
+
+        expect(log).not.toHaveBeenCalled();
+        log.mockRestore();
+    });
+
+    it('logs successful script loads when debug is enabled', () => {
+        const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+        const plugin = VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            debug: true
+        });
+        plugin.install();
+
+        const script = document.head.querySelector('script[src="https://us.umami.is/script.js"]') as HTMLScriptElement | null;
+        triggerScriptLoad(script);
+
+        expect(log).toHaveBeenCalledWith('Umami plugin loaded');
+        log.mockRestore();
+    });
 });
 
 describe('identifyUmamiSession', () => {
@@ -320,7 +351,7 @@ describe('idempotent installation', () => {
 
         const scripts = document.head.querySelectorAll('script[data-umami-plugin]');
         expect(scripts.length).toBe(1);
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('already injected'));
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('keeping the existing configuration'));
         warn.mockRestore();
     });
 
@@ -353,7 +384,7 @@ describe('idempotent installation', () => {
         plugin.install();
 
         expect(afterEach).toHaveBeenCalledTimes(1);
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('already attached'));
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('keeping the existing configuration'));
         warn.mockRestore();
     });
 
@@ -419,11 +450,95 @@ describe('idempotent installation', () => {
         invokeRouteHandler(routeHandler, '/after-load');
 
         expect(track).not.toHaveBeenCalled();
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('reusing the existing hook with the latest configuration'));
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('updating it for retry after a failed load'));
         warn.mockRestore();
     });
 
-    it('attaches separate hooks when installed with distinct routers', () => {
+    it('keeps manual router tracking after a successful second install tries to enable autoTrack', () => {
+        let routeHandler: ((to: any) => void) | null = null;
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const router = {
+            afterEach: (fn: (to: any) => void) => {
+                routeHandler = fn;
+            }
+        } as any;
+
+        VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            autoTrack: false,
+            router
+        }).install();
+
+        const track = vi.fn();
+        (window as any).umami = {
+            track,
+            identify: vi.fn()
+        };
+
+        const script = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        expect(script).not.toBeNull();
+        triggerScriptLoad(script);
+
+        VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            autoTrack: true,
+            router
+        }).install();
+
+        invokeRouteHandler(routeHandler, '/after-reinstall');
+
+        expect(track).toHaveBeenCalledTimes(1);
+        const flushedFn = track.mock.calls[0][0];
+        const payload = typeof flushedFn === 'function' ? flushedFn({ website: 'test-website-id' }) : flushedFn;
+        expect(payload.url).toBe('/after-reinstall');
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('keeping the existing configuration'));
+        warn.mockRestore();
+    });
+
+    it('keeps Umami autoTrack active after a successful second install tries to disable it', () => {
+        let routeHandler: ((to: any) => void) | null = null;
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const router = {
+            afterEach: (fn: (to: any) => void) => {
+                routeHandler = fn;
+            }
+        } as any;
+
+        VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            autoTrack: true,
+            router
+        }).install();
+
+        const track = vi.fn();
+        (window as any).umami = {
+            track,
+            identify: vi.fn()
+        };
+
+        const script = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        expect(script).not.toBeNull();
+        triggerScriptLoad(script);
+
+        VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            autoTrack: false,
+            router
+        }).install();
+
+        invokeRouteHandler(routeHandler, '/after-reinstall');
+
+        expect(track).not.toHaveBeenCalled();
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('keeping the existing configuration'));
+        warn.mockRestore();
+    });
+
+    it('does not attach additional router hooks after a successful install', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
         const afterEachA = vi.fn();
         const afterEachB = vi.fn();
         const routerA = { afterEach: afterEachA } as any;
@@ -441,7 +556,9 @@ describe('idempotent installation', () => {
         }).install();
 
         expect(afterEachA).toHaveBeenCalledTimes(1);
-        expect(afterEachB).toHaveBeenCalledTimes(1);
+        expect(afterEachB).not.toHaveBeenCalled();
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('keeping the existing configuration'));
+        warn.mockRestore();
     });
 });
 
@@ -587,6 +704,36 @@ describe('autoTrack option', () => {
         expect(track).toHaveBeenCalledTimes(0);
     });
 
+    it('does not forward post-load navigations when data-auto-track is enabled through extraDataAttributes', () => {
+        let routeHandler: ((to: any) => void) | null = null;
+        const router = {
+            afterEach: (fn: (to: any) => void) => {
+                routeHandler = fn;
+            }
+        } as any;
+
+        VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            router,
+            extraDataAttributes: {
+                'data-auto-track': 'true'
+            }
+        }).install();
+
+        const track = vi.fn();
+        (window as any).umami = {
+            track,
+            identify: vi.fn()
+        };
+        const script = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        triggerScriptLoad(script);
+        expect(script?.getAttribute('data-auto-track')).toBe('true');
+
+        invokeRouteHandler(routeHandler, '/after-load');
+        expect(track).toHaveBeenCalledTimes(0);
+    });
+
     it('attaches router.afterEach when autoTrack is false', () => {
         const afterEach = vi.fn();
         const router = { afterEach } as any;
@@ -601,7 +748,8 @@ describe('autoTrack option', () => {
         expect(afterEach).toHaveBeenCalledTimes(1);
     });
 
-    it('still applies non-conflicting extraDataAttributes when autoTrack is explicit', () => {
+    it('still applies non-conflicting extraDataAttributes when autoTrack conflicts with data-auto-track', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
         const plugin = VueUmamiPlugin({
             websiteID: 'test-website-id',
             allowLocalhost: true,
@@ -616,6 +764,8 @@ describe('autoTrack option', () => {
         const script = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
         expect(script?.getAttribute('data-auto-track')).toBe('true');
         expect(script?.getAttribute('data-domains')).toBe('example.com');
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('autoTrack option conflicts with extraDataAttributes'));
+        warn.mockRestore();
     });
 
     it('does not warn about conflicts when autoTrack is omitted and extraDataAttributes overrides data-auto-track', () => {

@@ -1,13 +1,20 @@
-import type { RouteLocationNormalized, Router } from 'vue-router';
-
 type UmamiPluginOptions = {
     websiteID: string;
     scriptSrc?: string;
-    router?: Router;
+    router?: UmamiRouterLike;
     allowLocalhost?: boolean;
     autoTrack?: boolean;
+    debug?: boolean;
     maxQueuedEvents?: number;
     extraDataAttributes?: Record<string, string>;
+}
+
+type UmamiRouteLike = {
+    fullPath: string;
+}
+
+type UmamiRouterLike = {
+    afterEach: (handler: (to: UmamiRouteLike) => void) => unknown;
 }
 
 type UmamiTrackEvent = string;
@@ -58,6 +65,8 @@ type UmamiRouterAttachmentState = {
     autoTrack: boolean;
 }
 
+type UmamiInstallState = 'idle' | 'pending' | 'loaded';
+
 type ResolvedAutoTrack = {
     value: boolean;
     isProvided: boolean;
@@ -71,6 +80,7 @@ declare global {
 }
 
 const PLUGIN_MARKER_ATTRIBUTE = 'data-umami-plugin';
+const PLUGIN_STATE_ATTRIBUTE = 'data-umami-plugin-state';
 
 const PROTECTED_DATA_ATTRIBUTES: ReadonlySet<string> = new Set([
     'data-website-id',
@@ -80,7 +90,8 @@ const PROTECTED_DATA_ATTRIBUTES: ReadonlySet<string> = new Set([
 const DEFAULT_MAX_QUEUED_EVENTS = 100;
 
 const queuedEvents: UmamiPluginQueuedEvent[] = [];
-const attachedRouters: WeakMap<Router, UmamiRouterAttachmentState> = new WeakMap();
+const attachedRouters: WeakMap<UmamiRouterLike, UmamiRouterAttachmentState> = new WeakMap();
+let installState: UmamiInstallState = 'idle';
 let hasWarnedQueueLimit = false;
 let maxQueuedEvents = DEFAULT_MAX_QUEUED_EVENTS;
 
@@ -110,7 +121,7 @@ function queueEvent(item: UmamiPluginQueuedEvent): void {
     queuedEvents.push(item);
 }
 
-function resolveAutoTrack(value: unknown): ResolvedAutoTrack {
+function resolveAutoTrack(value: unknown, extraDataAttributes: Record<string, string> = {}): ResolvedAutoTrack {
     if (typeof value === 'boolean') {
         return {
             value,
@@ -126,6 +137,13 @@ function resolveAutoTrack(value: unknown): ResolvedAutoTrack {
             shouldWarnConflict: false
         };
     }
+    if ('data-auto-track' in extraDataAttributes) {
+        return {
+            value: extraDataAttributes['data-auto-track'] !== 'false',
+            isProvided: false,
+            shouldWarnConflict: false
+        };
+    }
     return {
         value: false,
         isProvided: false,
@@ -136,34 +154,53 @@ function resolveAutoTrack(value: unknown): ResolvedAutoTrack {
 export function VueUmamiPlugin(options: UmamiPluginOptions): { install: () => void; } {
     return {
         install: () => {
-            setMaxQueuedEvents(options.maxQueuedEvents);
             if (window.location.hostname.includes('localhost') && !options.allowLocalhost) {
                 console.warn('Umami plugin not installed due to being on localhost.');
                 return;
             }
             const { scriptSrc = 'https://us.umami.is/script.js', websiteID, router, extraDataAttributes = {} }: UmamiPluginOptions = options;
-            const autoTrack = resolveAutoTrack(options.autoTrack);
+            const autoTrack = resolveAutoTrack(options.autoTrack, extraDataAttributes);
             if (!websiteID) {
                 return console.warn('Website ID not provided for Umami plugin, skipping.');
             }
+            if (getInstallState() !== 'idle') {
+                console.warn('Umami plugin is already installed or pending installation; keeping the existing configuration.');
+                return;
+            }
+            installState = 'pending';
+            setMaxQueuedEvents(options.maxQueuedEvents);
+            const debug = options.debug === true;
             if (router) {
                 attachUmamiToRouter(router, autoTrack.value);
             }
-            onDocumentReady(() => initUmamiScript(scriptSrc, websiteID, extraDataAttributes, autoTrack));
+            onDocumentReady(() => initUmamiScript(scriptSrc, websiteID, extraDataAttributes, autoTrack, debug));
         }
     };
 }
 
-function attachUmamiToRouter(router: Router, autoTrack: boolean): void {
+function getInstallState(): UmamiInstallState {
+    if (installState === 'idle') {
+        return installState;
+    }
+    if (installState === 'pending' && document.readyState === 'loading') {
+        return installState;
+    }
+    if (!document.head.querySelector(`script[${PLUGIN_MARKER_ATTRIBUTE}]`)) {
+        installState = 'idle';
+    }
+    return installState;
+}
+
+function attachUmamiToRouter(router: UmamiRouterLike, autoTrack: boolean): void {
     const existingAttachment: UmamiRouterAttachmentState | undefined = attachedRouters.get(router);
     if (existingAttachment) {
         existingAttachment.autoTrack = autoTrack;
-        console.warn('Umami plugin router hook is already attached to this router; reusing the existing hook with the latest configuration.');
+        console.warn('Umami plugin router hook is already attached to this router; updating it for retry after a failed load.');
         return;
     }
     const attachment: UmamiRouterAttachmentState = { autoTrack };
     attachedRouters.set(router, attachment);
-    router.afterEach((to: RouteLocationNormalized): void => {
+    router.afterEach((to: UmamiRouteLike): void => {
         if (attachment.autoTrack && window.umami) {
             return;
         }
@@ -181,9 +218,12 @@ function initUmamiScript(
     scriptSrc: string,
     websiteID: string,
     extraDataAttributes: Record<string, string>,
-    autoTrack: ResolvedAutoTrack
+    autoTrack: ResolvedAutoTrack,
+    debug: boolean
 ): void {
-    if (document.head.querySelector(`script[${PLUGIN_MARKER_ATTRIBUTE}]`)) {
+    const existingScript = document.head.querySelector(`script[${PLUGIN_MARKER_ATTRIBUTE}]`) as HTMLScriptElement | null;
+    if (existingScript) {
+        installState = existingScript.getAttribute(PLUGIN_STATE_ATTRIBUTE) === 'loaded' ? 'loaded' : 'pending';
         console.warn('Umami plugin script is already injected; skipping duplicate injection.');
         return;
     }
@@ -191,14 +231,20 @@ function initUmamiScript(
     script.defer = true;
     script.src = scriptSrc;
     script.onload = (): void => {
-        console.log('Umami plugin loaded');
+        script.setAttribute(PLUGIN_STATE_ATTRIBUTE, 'loaded');
+        installState = 'loaded';
+        if (debug) {
+            console.log('Umami plugin loaded');
+        }
         processQueuedEvents();
     };
     script.onerror = (): void => {
+        installState = 'idle';
         console.warn('Umami plugin script failed to load; removing marker so a later install can retry.');
         script.remove();
     };
     script.setAttribute(PLUGIN_MARKER_ATTRIBUTE, 'true');
+    script.setAttribute(PLUGIN_STATE_ATTRIBUTE, 'pending');
     script.setAttribute('data-website-id', websiteID);
     script.setAttribute('data-auto-track', String(autoTrack.value));
     if (extraDataAttributes) {
