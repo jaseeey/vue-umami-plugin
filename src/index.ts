@@ -46,7 +46,8 @@ export type UmamiPluginOptions = {
     debug?: boolean;
     /**
      * Maximum number of track/identify calls kept while `window.umami` is unavailable. Oldest items are dropped when
-     * the limit is reached. Must be a finite number `>= 1`; invalid values fall back to `100`.
+     * the limit is reached, including if installation lowers the cap below calls that are already queued. Must be a
+     * finite number `>= 1`; invalid values fall back to `100`.
      * @defaultValue `100`
      */
     maxQueuedEvents?: number;
@@ -185,20 +186,29 @@ function setMaxQueuedEvents(value: unknown): void {
         maxQueuedEvents = DEFAULT_MAX_QUEUED_EVENTS;
     }
     hasWarnedQueueLimit = false;
+    let hasTrimmedQueuedEvents = false;
     while (queuedEvents.length > maxQueuedEvents) {
         queuedEvents.shift();
+        hasTrimmedQueuedEvents = true;
+    }
+    if (hasTrimmedQueuedEvents) {
+        warnQueueLimit();
     }
 }
 
 function queueEvent(item: UmamiPluginQueuedEvent): void {
     if (queuedEvents.length >= maxQueuedEvents) {
         queuedEvents.shift();
-        if (!hasWarnedQueueLimit) {
-            console.warn(`Umami queue limit of ${maxQueuedEvents} reached; dropping oldest queued events until tracker is available.`);
-            hasWarnedQueueLimit = true;
-        }
+        warnQueueLimit();
     }
     queuedEvents.push(item);
+}
+
+function warnQueueLimit(): void {
+    if (!hasWarnedQueueLimit) {
+        console.warn(`Umami queue limit of ${maxQueuedEvents} reached; dropping oldest queued events until tracker is available.`);
+        hasWarnedQueueLimit = true;
+    }
 }
 
 function resolveAutoTrack(value: unknown, extraDataAttributes: Record<string, string> = {}): ResolvedAutoTrack {

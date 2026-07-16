@@ -73,7 +73,8 @@ app.use(
         // plugin load events to the console.
         // debug: false,
         // Optional, defaults to 100 (must be >= 1):
-        // oldest queued events are dropped if the limit is reached
+        // oldest queued events are dropped if the limit is reached,
+        // including calls queued before installation.
         // maxQueuedEvents: 100,
         // Optionally forward any Umami tracker option to the injected
         // <script> tag. See the "Tracker Configuration" section below and
@@ -285,7 +286,7 @@ Initializes the Umami tracking plugin with specified options.
         - `allowLocalhost` (Boolean, optional): Whether to allow tracking on localhost, default: `false`
         - `autoTrack` (Boolean, optional): Enables Umami's built-in auto-tracking by setting `data-auto-track="true"` on the injected script. When a `router` is also provided, the plugin continues to forward every route change so browser history and hash navigation are not missed; native auto-tracking may therefore duplicate History API page views. Default: `false`. See [Single-page application tracking](#single-page-application-tracking) for guidance.
         - `debug` (Boolean, optional): Logs successful plugin load events to the console when set to `true`. Default: `false`.
-        - `maxQueuedEvents` (Number, optional): Maximum number of queued calls kept while `window.umami` is unavailable. Oldest items are dropped when the limit is reached. Default: `100`.
+        - `maxQueuedEvents` (Number, optional): Maximum number of queued calls kept while `window.umami` is unavailable. Oldest items are dropped when the limit is reached, including if installation lowers the cap below calls already queued. Default: `100`.
         - `extraDataAttributes` (Object, optional): Additional `data-*` attributes to apply to the injected Umami `<script>` element. These are applied after the default attributes; `data-auto-track` can be overridden here only when `autoTrack` is not explicitly set, while `data-website-id` is always taken from `websiteID` and cannot be overridden. Non-`data-*` keys are ignored. Defaults to `{}`. See [Tracker Configuration](#tracker-configuration) for the supported options and examples.
 
 Invalid `autoTrack` values are treated as `false`, and invalid `maxQueuedEvents` values fall back to the default limit of `100`.

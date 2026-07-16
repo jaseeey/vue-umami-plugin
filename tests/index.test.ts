@@ -331,6 +331,43 @@ describe('queued events', () => {
         triggerScriptLoad(script);
         warn.mockRestore();
     });
+
+    it('warns when installation trims calls queued before a lower cap is configured', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true
+        }).install();
+        const resetScript = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        triggerScriptError(resetScript);
+
+        trackUmamiEvent('event-a');
+        trackUmamiEvent('event-b');
+        trackUmamiEvent('event-c');
+
+        VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true,
+            maxQueuedEvents: 2
+        }).install();
+
+        const queueLimitWarnings = warn.mock.calls.filter(args =>
+            typeof args[0] === 'string' && args[0].includes('Umami queue limit of 2 reached')
+        );
+        expect(queueLimitWarnings).toHaveLength(1);
+
+        const track = vi.fn();
+        (window as any).umami = {
+            track,
+            identify: vi.fn()
+        };
+        const script = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        triggerScriptLoad(script);
+
+        expect(track).toHaveBeenNthCalledWith(1, 'event-b', undefined);
+        expect(track).toHaveBeenNthCalledWith(2, 'event-c', undefined);
+        warn.mockRestore();
+    });
 });
 
 describe('idempotent installation', () => {
