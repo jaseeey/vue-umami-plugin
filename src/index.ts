@@ -1,19 +1,60 @@
 /**
  * Configuration for {@link VueUmamiPlugin}.
  *
- * `router` is typed as {@link UmamiRouterLike} rather than Vue Router's
- * `Router` so this package never depends on (or pins) a specific
- * `vue-router` version. Any object that matches the structural contract is
- * accepted, including Vue Router instances and test doubles.
+ * `router` is typed as {@link UmamiRouterLike} rather than Vue Router's `Router` so this package never depends on (or
+ * pins) a specific `vue-router` version. Any object that matches the structural contract is accepted, including Vue
+ * Router instances and test doubles.
  */
 export type UmamiPluginOptions = {
+    /**
+     * Umami website ID applied as `data-website-id` on the script tag. Required by the type. At runtime an empty or
+     * missing value skips installation and logs a console warning.
+     */
     websiteID: string;
+    /**
+     * URL of the Umami tracker script (cloud or self-hosted).
+     * @defaultValue `https://us.umami.is/script.js`
+     */
     scriptSrc?: string;
+    /**
+     * Optional router used for SPA page-view tracking via `afterEach`. Typically a Vue Router instance; see
+     * {@link UmamiRouterLike}. Omit when you track page views manually with {@link trackUmamiPageView} or rely only on
+     * Umami's built-in auto-tracking.
+     */
     router?: UmamiRouterLike;
+    /**
+     * When `true`, allow installation when `window.location.hostname` includes the substring `localhost` (for example
+     * `localhost` or `app.localhost`). Hostnames such as `127.0.0.1` are not matched by this check. Without this flag
+     * the plugin skips install on matching hosts because Umami typically rejects localhost traffic.
+     * @defaultValue `false`
+     */
     allowLocalhost?: boolean;
+    /**
+     * When `true`, sets `data-auto-track="true"` so Umami owns navigation tracking after the script loads. The plugin
+     * still forwards pre-load navigations through the router hook. Invalid non-boolean values fall back to `false` and
+     * are treated as an explicit option (so they win over `extraDataAttributes['data-auto-track']`).
+     * @defaultValue `false`
+     */
     autoTrack?: boolean;
+    /**
+     * When `true`, logs a console message after the tracker script loads successfully. Failed loads always warn
+     * regardless of this flag.
+     * @defaultValue `false`
+     */
     debug?: boolean;
+    /**
+     * Maximum number of track/identify calls kept while `window.umami` is unavailable. Oldest items are dropped when
+     * the limit is reached. Must be a finite number `>= 1`; invalid values fall back to `100`.
+     * @defaultValue `100`
+     */
     maxQueuedEvents?: number;
+    /**
+     * Extra `data-*` attributes applied to the injected script after the defaults (for example `data-host-url`,
+     * `data-domains`, `data-performance`). `data-website-id` and the plugin marker attribute cannot be overridden.
+     * `data-auto-track` can only be set here when {@link UmamiPluginOptions.autoTrack} is not explicitly provided.
+     * Non-`data-*` keys are ignored.
+     * @defaultValue `{}`
+     */
     extraDataAttributes?: Record<string, string>;
 }
 
@@ -23,37 +64,56 @@ export type UmamiPluginOptions = {
  * Only `fullPath` is read when a navigation is forwarded to Umami.
  */
 export type UmamiRouteLike = {
+    /** Full path (including query and hash) used as the tracked page URL. */
     fullPath: string;
 }
 
 /**
  * Structural router contract for optional SPA page-view tracking.
  *
- * Intentionally not imported from `vue-router`: the plugin only needs
- * `afterEach` and a route with `fullPath`. Structural typing keeps
- * `vue-router` out of this package's dependency graph, avoids peer-dep
- * version conflicts, and still accepts real Vue Router instances because
- * they satisfy this shape.
+ * Intentionally not imported from `vue-router`: the plugin only needs `afterEach` and a route with `fullPath`.
+ * Structural typing keeps `vue-router` out of this package's dependency graph, avoids peer-dep version conflicts, and
+ * still accepts real Vue Router instances because they satisfy this shape.
  */
 export type UmamiRouterLike = {
+    /**
+     * Registers a handler invoked after each navigation. The plugin only requires the `to` argument.
+     */
     afterEach: (handler: (to: UmamiRouteLike) => void) => unknown;
 }
 
+/** Custom event name passed to Umami's `track` API. */
 export type UmamiTrackEvent = string;
 
+/** Optional event payload object for {@link trackUmamiEvent}. */
 export type UmamiTrackEventParams = object;
 
+/** Optional session identifier string for {@link identifyUmamiSession}. */
 export type UmamiTrackSessionIdentifier = string;
 
+/** Session data object accepted by {@link identifyUmamiSession}. */
 export type UmamiTrackSessionData = Record<string, unknown>;
 
+/**
+ * Full page-view payload shape accepted by Umami's tracker.
+ *
+ * Consumers usually pass a partial object of this type to {@link trackUmamiPageView}. Omitted fields keep Umami's
+ * defaults for the current page.
+ */
 export type UmamiTrackPageViewOptions = {
+    /** Umami website ID for the page view (normally taken from the script tag). */
     website: string;
+    /** Hostname reported with the page view. */
     hostname?: string;
+    /** Browser language tag (for example `en-US`). */
     language?: string;
+    /** Referring URL, when available. */
     referrer?: string;
+    /** Screen resolution string (for example `1920x1080`). */
     screen?: string;
+    /** Document title for the page view. */
     title?: string;
+    /** Path or URL to record (for example `/checkout` or a full path with query). */
     url?: string;
 }
 
@@ -173,6 +233,31 @@ function resolveAutoTrack(value: unknown, extraDataAttributes: Record<string, st
     };
 }
 
+/**
+ * Creates a Vue plugin that injects the Umami tracker script and optionally wires SPA page-view tracking through a
+ * router.
+ *
+ * Installation is idempotent: repeated successful installs keep the existing configuration and log a warning. If the
+ * script fails to load, a later `install()` can retry (optionally with updated options). An empty or missing
+ * {@link UmamiPluginOptions.websiteID} skips installation with a warning. Tracking is skipped when
+ * `window.location.hostname` includes the substring `localhost` unless {@link UmamiPluginOptions.allowLocalhost} is
+ * `true`.
+ *
+ * @param options - Plugin configuration; see {@link UmamiPluginOptions}.
+ * @returns A Vue plugin object with an `install` method for `app.use(...)`.
+ *
+ * @example
+ * ```ts
+ * import { createApp } from 'vue';
+ * import { VueUmamiPlugin } from '@jaseeey/vue-umami-plugin';
+ * import router from './router';
+ *
+ * createApp(App)
+ *     .use(VueUmamiPlugin({ websiteID: 'YOUR_ID', router }))
+ *     .use(router)
+ *     .mount('#app');
+ * ```
+ */
 export function VueUmamiPlugin(options: UmamiPluginOptions): { install: () => void; } {
     return {
         install: () => {
@@ -307,6 +392,19 @@ function processQueuedEvents(): void {
     hasWarnedQueueLimit = false;
 }
 
+/**
+ * Tracks a page view, optionally overriding Umami's default payload fields such as `url`, `title`, or `referrer`.
+ *
+ * Useful when not using a router, or when you need a view outside normal navigation. If the tracker is not loaded yet,
+ * the call is queued (subject to {@link UmamiPluginOptions.maxQueuedEvents}).
+ *
+ * @param options - Partial page-view fields merged onto tracker defaults.
+ *
+ * @example
+ * ```ts
+ * trackUmamiPageView({ url: '/checkout', title: 'Checkout' });
+ * ```
+ */
 export function trackUmamiPageView(options?: Partial<UmamiTrackPageViewOptions>): void {
     const trackPageViewOptionsFn: UmamiTrackModifier = (props: UmamiTrackPageViewOptions): UmamiTrackPayload => {
         return { ...props, ...options };
@@ -317,6 +415,19 @@ export function trackUmamiPageView(options?: Partial<UmamiTrackPageViewOptions>)
         : queueEvent(trackPageViewOptionsFn);
 }
 
+/**
+ * Tracks a named custom event with optional event data.
+ *
+ * If the tracker is not loaded yet, the call is queued (subject to {@link UmamiPluginOptions.maxQueuedEvents}).
+ *
+ * @param event - Event name reported to Umami.
+ * @param eventParams - Optional structured payload for the event.
+ *
+ * @example
+ * ```ts
+ * trackUmamiEvent('button-click', { buttonName: 'subscribe' });
+ * ```
+ */
 export function trackUmamiEvent(event: UmamiTrackEvent, eventParams?: UmamiTrackEventParams): void {
     const tracker: UmamiTracker | undefined = window.umami;
     tracker
@@ -324,7 +435,33 @@ export function trackUmamiEvent(event: UmamiTrackEvent, eventParams?: UmamiTrack
         : queueEvent({ kind: 'track', event, args: [ eventParams ] });
 }
 
+/**
+ * Identifies the current Umami session with arbitrary session data.
+ *
+ * If the tracker is not loaded yet, the call is queued (subject to {@link UmamiPluginOptions.maxQueuedEvents}).
+ *
+ * @param sessionData - Key/value data associated with the session.
+ *
+ * @example
+ * ```ts
+ * identifyUmamiSession({ userId: 'alice', plan: 'pro' });
+ * ```
+ */
 export function identifyUmamiSession(sessionData: UmamiTrackSessionData): void;
+
+/**
+ * Identifies the current Umami session with an explicit session id and optional session data.
+ *
+ * If the tracker is not loaded yet, the call is queued (subject to {@link UmamiPluginOptions.maxQueuedEvents}).
+ *
+ * @param id - Custom session identifier.
+ * @param sessionData - Optional key/value data associated with the session.
+ *
+ * @example
+ * ```ts
+ * identifyUmamiSession('alice-123', { email: 'alice@example.com' });
+ * ```
+ */
 export function identifyUmamiSession(id: UmamiTrackSessionIdentifier, sessionData?: UmamiTrackSessionData): void;
 export function identifyUmamiSession(idOrSessionData: UmamiTrackSessionIdentifier | UmamiTrackSessionData, sessionData?: UmamiTrackSessionData): void {
     const tracker: UmamiTracker | undefined = window.umami;
