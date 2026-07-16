@@ -325,7 +325,19 @@ function initUmamiScript(
 ): void {
     const existingScript = document.head.querySelector(`script[${PLUGIN_MARKER_ATTRIBUTE}]`) as HTMLScriptElement | null;
     if (existingScript) {
-        installState = existingScript.getAttribute(PLUGIN_STATE_ATTRIBUTE) === 'loaded' ? 'loaded' : 'pending';
+        const isLoaded = existingScript.getAttribute(PLUGIN_STATE_ATTRIBUTE) === 'loaded';
+        installState = isLoaded ? 'loaded' : 'pending';
+        if (isLoaded) {
+            processQueuedEvents();
+        } else {
+            existingScript.addEventListener('load', (): void => {
+                installState = 'loaded';
+                processQueuedEvents();
+            }, { once: true });
+            existingScript.addEventListener('error', (): void => {
+                installState = 'idle';
+            }, { once: true });
+        }
         console.warn('Umami plugin script is already injected; skipping duplicate injection.');
         return;
     }
