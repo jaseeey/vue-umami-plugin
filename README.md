@@ -65,10 +65,9 @@ app.use(
         websiteID: 'YOUR_UMAMI_WEBSITE_ID',
         scriptSrc: 'https://us.umami.is/script.js', // Optional
         router,
-        // Optional, defaults to false. When true, Umami's built-in
-        // auto-tracking handles page views after the script loads;
-        // the plugin's router.afterEach hook still covers navigations
-        // that occur before the script is ready.
+        // Optional, defaults to false. Keep false with a router so the
+        // plugin's router.afterEach hook is the page-view source.
+        // Enable true without a router to use Umami's native auto-tracking.
         // autoTrack: false,
         // Optional, defaults to false. When true, logs successful
         // plugin load events to the console.
@@ -284,7 +283,7 @@ Initializes the Umami tracking plugin with specified options.
         - `scriptSrc` (String, optional): Custom URL for the Umami script source, default: `https://us.umami.is/script.js`
         - `router` (`UmamiRouterLike`, optional): A router-compatible object that exposes `afterEach` and navigates to routes with `fullPath` (typically a Vue Router instance). Typed structurally so this package does not depend on or pin a `vue-router` version; see [Why `router` uses structural types](#why-router-uses-structural-types-umamirouterlike).
         - `allowLocalhost` (Boolean, optional): Whether to allow tracking on localhost, default: `false`
-        - `autoTrack` (Boolean, optional): Enables Umami's built-in auto-tracking. When `true`, the injected script receives `data-auto-track="true"` and the plugin's `router.afterEach` hook only forwards navigations that occur before the Umami script finishes loading; after load, Umami's tracker takes over to avoid double-counting. Default: `false`. See [Single-page application tracking](#single-page-application-tracking) for guidance.
+        - `autoTrack` (Boolean, optional): Enables Umami's built-in auto-tracking by setting `data-auto-track="true"` on the injected script. When a `router` is also provided, the plugin continues to forward every route change so browser history and hash navigation are not missed; native auto-tracking may therefore duplicate History API page views. Default: `false`. See [Single-page application tracking](#single-page-application-tracking) for guidance.
         - `debug` (Boolean, optional): Logs successful plugin load events to the console when set to `true`. Default: `false`.
         - `maxQueuedEvents` (Number, optional): Maximum number of queued calls kept while `window.umami` is unavailable. Oldest items are dropped when the limit is reached. Default: `100`.
         - `extraDataAttributes` (Object, optional): Additional `data-*` attributes to apply to the injected Umami `<script>` element. These are applied after the default attributes; `data-auto-track` can be overridden here only when `autoTrack` is not explicitly set, while `data-website-id` is always taken from `websiteID` and cannot be overridden. Non-`data-*` keys are ignored. Defaults to `{}`. See [Tracker Configuration](#tracker-configuration) for the supported options and examples.
@@ -319,17 +318,12 @@ Identifies a user session with Umami.
 
 ## Single-page application tracking
 
-The plugin defaults to `autoTrack: false` so that Vue Router integration (via `router.afterEach`) remains the single source of truth for page views. This is the recommended configuration for most single-page applications.
+The plugin defaults to `autoTrack: false` so Vue Router integration (via `router.afterEach`) remains the single source of truth for page views. This is the recommended configuration for most single-page applications.
 
 If you prefer Umami's built-in auto-tracking, consider the tradeoffs:
 
-- **With `createWebHistory` router**: set `autoTrack: true`. Umami's tracker listens to History API events and captures Vue Router navigation automatically once the external script finishes loading. To cover the pre-load window, the plugin still attaches its own `router.afterEach` hook and forwards navigations through the queue; after the script loads the hook becomes a no-op so Umami is the sole source of truth.
-- **With `createWebHashHistory` router**: keep `autoTrack: false`. Umami's auto-track does not reliably handle `hashchange` navigation; the plugin's `afterEach` hook is required for accurate coverage.
+- **With a router**: keep `autoTrack: false`. The plugin forwards every `afterEach` navigation, including browser history and hash navigation, so it has complete SPA coverage. If you set `autoTrack: true` as well, the router hook remains active to avoid missed page views, but Umami may also record History API navigation and duplicate those views.
 - **Without a router**: either set `autoTrack: true` and let Umami handle navigation via the History API, or keep `autoTrack: false` and call `trackUmamiPageView()` manually at navigation points.
-
-If you set `autoTrack: true` but still want custom per-route logic (for example, to override `to.fullPath` or filter navigations), the plugin exports `trackUmamiPageView` so you can attach your own `router.afterEach` hook alongside auto-tracking.
-
-**Known edge case:** when `autoTrack: true` is combined with a router and the user is still navigating at the exact moment the Umami script finishes loading, the final pre-load navigation may be recorded twice — once by the queue flush and once by Umami's initial auto-tracked page view. In practice this affects at most one page view per session and only when the last redirect lands on the same URL that Umami captures at load time.
 
 ## Build and Packaging
 

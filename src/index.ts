@@ -30,9 +30,11 @@ export type UmamiPluginOptions = {
      */
     allowLocalhost?: boolean;
     /**
-     * When `true`, sets `data-auto-track="true"` so Umami owns navigation tracking after the script loads. The plugin
-     * still forwards pre-load navigations through the router hook. Invalid non-boolean values fall back to `false` and
-     * are treated as an explicit option (so they win over `extraDataAttributes['data-auto-track']`).
+     * When `true`, sets `data-auto-track="true"` for Umami's built-in tracking. When a router is supplied, the plugin
+     * continues forwarding every router navigation to avoid missing browser history or hash changes. This can overlap
+     * with Umami's built-in tracking, so `false` is recommended when the router is the page-view source. Invalid
+     * non-boolean values fall back to `false` and are treated as an explicit option (so they win over
+     * `extraDataAttributes['data-auto-track']`).
      * @defaultValue `false`
      */
     autoTrack?: boolean;
@@ -143,10 +145,6 @@ type UmamiPluginQueuedEvent = {
     args: [ UmamiTrackSessionIdentifier | UmamiTrackSessionData, UmamiTrackSessionData? ]
 } | UmamiTrackModifier;
 
-type UmamiRouterAttachmentState = {
-    autoTrack: boolean;
-}
-
 type UmamiInstallState = 'idle' | 'pending' | 'loaded';
 
 type ResolvedAutoTrack = {
@@ -172,7 +170,7 @@ const PROTECTED_DATA_ATTRIBUTES: ReadonlySet<string> = new Set([
 const DEFAULT_MAX_QUEUED_EVENTS = 100;
 
 const queuedEvents: UmamiPluginQueuedEvent[] = [];
-const attachedRouters: WeakMap<UmamiRouterLike, UmamiRouterAttachmentState> = new WeakMap();
+const attachedRouters: WeakSet<UmamiRouterLike> = new WeakSet();
 let installState: UmamiInstallState = 'idle';
 let hasWarnedQueueLimit = false;
 let maxQueuedEvents = DEFAULT_MAX_QUEUED_EVENTS;
@@ -278,7 +276,7 @@ export function VueUmamiPlugin(options: UmamiPluginOptions): { install: () => vo
             setMaxQueuedEvents(options.maxQueuedEvents);
             const debug = options.debug === true;
             if (router) {
-                attachUmamiToRouter(router, autoTrack.value);
+                attachUmamiToRouter(router);
             }
             onDocumentReady(() => initUmamiScript(scriptSrc, websiteID, extraDataAttributes, autoTrack, debug));
         }
@@ -298,21 +296,13 @@ function getInstallState(): UmamiInstallState {
     return installState;
 }
 
-function attachUmamiToRouter(router: UmamiRouterLike, autoTrack: boolean): void {
-    const existingAttachment: UmamiRouterAttachmentState | undefined = attachedRouters.get(router);
-    if (existingAttachment) {
-        existingAttachment.autoTrack = autoTrack;
-        console.warn('Umami plugin router hook is already attached to this router; updating it for retry after a failed load.');
+function attachUmamiToRouter(router: UmamiRouterLike): void {
+    if (attachedRouters.has(router)) {
+        console.warn('Umami plugin router hook is already attached to this router; keeping the existing hook.');
         return;
     }
-    const attachment: UmamiRouterAttachmentState = { autoTrack };
-    attachedRouters.set(router, attachment);
-    router.afterEach((to: UmamiRouteLike): void => {
-        if (attachment.autoTrack && window.umami) {
-            return;
-        }
-        trackUmamiPageView({ url: to.fullPath });
-    });
+    attachedRouters.add(router);
+    router.afterEach((to: UmamiRouteLike): void => trackUmamiPageView({ url: to.fullPath }));
 }
 
 function onDocumentReady(callback: () => void): void {

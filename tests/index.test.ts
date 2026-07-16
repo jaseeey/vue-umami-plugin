@@ -410,7 +410,7 @@ describe('idempotent installation', () => {
         warn.mockRestore();
     });
 
-    it('reuses the existing router hook with the latest autoTrack setting after a retry', () => {
+    it('keeps router tracking active after a retry enables autoTrack', () => {
         let routeHandler: ((to: any) => void) | null = null;
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
         const router = {
@@ -449,8 +449,11 @@ describe('idempotent installation', () => {
 
         invokeRouteHandler(routeHandler, '/after-load');
 
-        expect(track).not.toHaveBeenCalled();
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('updating it for retry after a failed load'));
+        expect(track).toHaveBeenCalledTimes(1);
+        const flushedFn = track.mock.calls[0][0];
+        const payload = typeof flushedFn === 'function' ? flushedFn({ website: 'test-website-id' }) : flushedFn;
+        expect(payload.url).toBe('/after-load');
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('already attached'));
         warn.mockRestore();
     });
 
@@ -497,7 +500,7 @@ describe('idempotent installation', () => {
         warn.mockRestore();
     });
 
-    it('keeps Umami autoTrack active after a successful second install tries to disable it', () => {
+    it('keeps router tracking active when autoTrack was configured first', () => {
         let routeHandler: ((to: any) => void) | null = null;
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
         const router = {
@@ -532,7 +535,10 @@ describe('idempotent installation', () => {
 
         invokeRouteHandler(routeHandler, '/after-reinstall');
 
-        expect(track).not.toHaveBeenCalled();
+        expect(track).toHaveBeenCalledTimes(1);
+        const flushedFn = track.mock.calls[0][0];
+        const payload = typeof flushedFn === 'function' ? flushedFn({ website: 'test-website-id' }) : flushedFn;
+        expect(payload.url).toBe('/after-reinstall');
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('keeping the existing configuration'));
         warn.mockRestore();
     });
@@ -676,7 +682,7 @@ describe('autoTrack option', () => {
         expect(payload.url).toBe('/dashboard');
     });
 
-    it('does not forward post-load navigations when autoTrack is true', () => {
+    it('forwards post-load navigations when autoTrack is true', () => {
         let routeHandler: ((to: any) => void) | null = null;
         const router = {
             afterEach: (fn: (to: any) => void) => {
@@ -701,10 +707,13 @@ describe('autoTrack option', () => {
         expect(track).toHaveBeenCalledTimes(0);
 
         invokeRouteHandler(routeHandler, '/after-load');
-        expect(track).toHaveBeenCalledTimes(0);
+        expect(track).toHaveBeenCalledTimes(1);
+        const trackedFn = track.mock.calls[0][0];
+        const payload = typeof trackedFn === 'function' ? trackedFn({ website: 'test-website-id' }) : trackedFn;
+        expect(payload.url).toBe('/after-load');
     });
 
-    it('does not forward post-load navigations when data-auto-track is enabled through extraDataAttributes', () => {
+    it('forwards post-load navigations when data-auto-track is enabled through extraDataAttributes', () => {
         let routeHandler: ((to: any) => void) | null = null;
         const router = {
             afterEach: (fn: (to: any) => void) => {
@@ -731,7 +740,10 @@ describe('autoTrack option', () => {
         expect(script?.getAttribute('data-auto-track')).toBe('true');
 
         invokeRouteHandler(routeHandler, '/after-load');
-        expect(track).toHaveBeenCalledTimes(0);
+        expect(track).toHaveBeenCalledTimes(1);
+        const trackedFn = track.mock.calls[0][0];
+        const payload = typeof trackedFn === 'function' ? trackedFn({ website: 'test-website-id' }) : trackedFn;
+        expect(payload.url).toBe('/after-load');
     });
 
     it('attaches router.afterEach when autoTrack is false', () => {
