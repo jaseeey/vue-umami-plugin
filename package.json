@@ -45,10 +45,10 @@
     "dist"
   ],
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.4",
-    "jsdom": "^24.1.0",
-    "typescript": "^5.4.3",
-    "vitest": "^4.1.4"
+    "@vitest/coverage-v8": "^5.0.1",
+    "jsdom": "^30.0.1",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.1"
   },
   "scripts": {
     "clean": "node scripts/build/clean-dist.js",
