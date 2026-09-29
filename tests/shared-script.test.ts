@@ -54,6 +54,7 @@ describe('shared Umami script', () => {
     });
 
     it('flushes a second module queue against an already loaded shared script', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
         const firstModule = await loadFreshPluginModule();
         firstModule.VueUmamiPlugin({
             websiteID: 'test-website-id',
@@ -84,5 +85,6 @@ describe('shared Umami script', () => {
         }).install();
 
         expect(track).toHaveBeenCalledWith('from-second-module', undefined);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('already injected'));
     });
 });
