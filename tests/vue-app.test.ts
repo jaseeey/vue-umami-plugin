@@ -275,6 +275,38 @@ describe('Vue app integration', () => {
             expect(payload.website).toBe('int-website-id');
         });
 
+        it('forwards tag and id overrides in page view payloads after load', async () => {
+            const plugin = await loadFreshPlugin();
+            mountVueApp(plugin, { websiteID: 'int-website-id', allowLocalhost: true });
+            const { track } = installTrackerMock();
+            dispatchScriptLoad(getUmamiScript());
+
+            plugin.trackUmamiPageView({ url: '/checkout', tag: 'beta', id: 'sess-9' });
+
+            expect(track).toHaveBeenCalledTimes(1);
+            const payload = invokePageViewModifier(track, { website: 'int-website-id', tag: 'default-tag' });
+            expect(payload.url).toBe('/checkout');
+            expect(payload.tag).toBe('beta');
+            expect(payload.id).toBe('sess-9');
+            expect(payload.website).toBe('int-website-id');
+        });
+
+        it('flushes queued page views with tag and id overrides intact', async () => {
+            const plugin = await loadFreshPlugin();
+            mountVueApp(plugin, { websiteID: 'int-website-id', allowLocalhost: true });
+
+            plugin.trackUmamiPageView({ url: '/pricing', tag: 'beta', id: 'sess-9' });
+
+            const { track } = installTrackerMock();
+            dispatchScriptLoad(getUmamiScript());
+
+            expect(track).toHaveBeenCalledTimes(1);
+            const payload = invokePageViewModifier(track, { website: 'int-website-id', tag: 'default-tag' });
+            expect(payload.url).toBe('/pricing');
+            expect(payload.tag).toBe('beta');
+            expect(payload.id).toBe('sess-9');
+        });
+
         it('queues events raised after mount and flushes them in order on load', async () => {
             const plugin = await loadFreshPlugin();
             mountVueApp(plugin, { websiteID: 'int-website-id', allowLocalhost: true });
@@ -458,6 +490,54 @@ describe('Vue app integration', () => {
             routerB.push('/from-b');
 
             expect(track).toHaveBeenCalledTimes(2);
+        });
+
+        it('treats a second install as pending while the document is still loading', async () => {
+            Object.defineProperty(document, 'readyState', { value: 'loading', configurable: true });
+            try {
+                const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+                const plugin = await loadFreshPlugin();
+                mountVueApp(plugin, { websiteID: 'int-website-id', allowLocalhost: true });
+                expect(getUmamiScript()).toBeNull();
+
+                mountVueApp(plugin, { websiteID: 'int-website-id', allowLocalhost: true });
+                expect(warn).toHaveBeenCalledWith(expect.stringContaining('already installed or pending'));
+                expect(document.head.querySelectorAll('script[data-umami-plugin]').length).toBe(0);
+
+                delete (document as any).readyState;
+                document.dispatchEvent(new Event('DOMContentLoaded'));
+
+                expect(document.head.querySelectorAll('script[data-umami-plugin]').length).toBe(1);
+            } finally {
+                delete (document as any).readyState;
+            }
+        });
+    });
+
+    describe('typed window.umami surface', () => {
+
+        it('exposes the tracker getSession method through the typed global', () => {
+            const getSession = vi.fn(() => ({ cache: 'sess-cache-1', website: 'int-website-id' }));
+            (window as any).umami = {
+                track: vi.fn(),
+                identify: vi.fn(),
+                getSession
+            };
+
+            const session = window.umami?.getSession?.();
+
+            expect(session).toEqual({ cache: 'sess-cache-1', website: 'int-website-id' });
+            expect(getSession).toHaveBeenCalledTimes(1);
+        });
+
+        it('still accepts a tracker without getSession so existing typings do not break', () => {
+            const track = vi.fn();
+            const identify = vi.fn();
+            const tracker: NonNullable<Window['umami']> = { track, identify };
+            (window as any).umami = tracker;
+
+            expect(window.umami?.track).toBe(track);
+            expect(window.umami?.identify).toBe(identify);
         });
     });
 });

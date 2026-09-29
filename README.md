@@ -137,6 +137,13 @@ const umamiOptions: UmamiPluginOptions = {
 app.use(VueUmamiPlugin(umamiOptions));
 ```
 
+The `window.umami` global is also typed with the current Umami API surface,
+including `getSession()`, so direct access to the tracker type-checks:
+
+```typescript
+const { cache, website } = window.umami?.getSession?.() ?? {};
+```
+
 #### Why `router` uses structural types (`UmamiRouterLike`)
 
 The optional `router` option is typed as `UmamiRouterLike`, not as Vue Router's
@@ -195,6 +202,7 @@ the complete list.
 | `data-host-url`       | Send tracking data to a custom Umami host instead of where the script is served from.        | v2.0    |
 | `data-domains`        | Comma-separated list of domains the tracker is allowed to run on.                             | v2.0    |
 | `data-auto-track`     | Enable/disable Umami's built-in automatic tracking. **Defaults to `"false"`** (see below).   | v2.0    |
+| `data-auto-pageview`  | Disable automatic page view sends while keeping the rest of the tracker initialized (for example click tracking and performance). | v3.2    |
 | `data-tag`            | Group events under a named tag for filtering and A/B testing.                                 | v2.11   |
 | `data-exclude-search` | Omit URL search/query parameters from collected URLs.                                         | v2.11   |
 | `data-exclude-hash`   | Omit URL hash fragments from collected URLs.                                                  | v2.16   |
@@ -245,6 +253,29 @@ app.use(
 > navigations, via the History API that Vue Router uses. To avoid counting every
 > page view twice, **omit the `router` option** and let Umami handle page views
 > when you turn auto-tracking on.
+
+Since Umami **v3.2**, `data-auto-pageview` offers a cleaner option for
+router-based apps: it disables only the automatic page view sends while the rest
+of the tracker (click tracking, Core Web Vitals) stays initialized. This keeps
+the plugin's `router.afterEach` hook as the single page-view source:
+
+```javascript
+app.use(
+    VueUmamiPlugin({
+        websiteID: 'YOUR_UMAMI_WEBSITE_ID',
+        router,
+        extraDataAttributes: {
+            'data-auto-track': 'true',
+            'data-auto-pageview': 'false',
+            'data-performance': 'true',
+        },
+    })
+);
+```
+
+On Umami versions before v3.2, `data-auto-pageview` has no effect, so fall back
+to the earlier example (auto-tracking on, router omitted) to avoid double-counted
+page views.
 
 ### Modifying or filtering payloads (`data-before-send`)
 
@@ -298,7 +329,7 @@ Repeated successful installs keep the existing tracker configuration. A later in
 Manually tracks a page view with Umami, useful when you are not using Vue Router or need to trigger a view outside normal navigation.
 
 - **Parameters**
-    - `options` (Object, optional): A partial page view payload that can override values such as `url`, `title`, or `referrer`.
+    - `options` (Object, optional): A partial page view payload that can override values such as `url`, `title`, `referrer`, `tag`, or `id`.
 
 ### `trackUmamiEvent(event, eventParams)`
 

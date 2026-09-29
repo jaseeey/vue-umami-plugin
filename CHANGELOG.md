@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `getSession` on the typed `window.umami` surface (optional), matching the
+  current Umami script API
+- `tag` and `id` fields on `UmamiTrackPageViewOptions` so page view calls can
+  override Umami's experiment tag and distinct session identifier
+- README: `data-auto-pageview` (Umami v3.2) reference row and a
+  performance-tracking recipe that keeps the plugin's router as the page-view
+  source
+
 ## [1.6.0] - 2026-07-21
 
 Backward-compatible minor release. Existing public exports and option names from
