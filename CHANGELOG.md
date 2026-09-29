@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README: `data-auto-pageview` (Umami v3.2) reference row and a
   performance-tracking recipe that keeps the plugin's router as the page-view
   source
+- README: declarative `data-umami-event` click tracking (including the
+  auto-tracking requirement) and how to exclude your own visits
+- README: `trackUmamiPageView` usage example and the `allowLocalhost` option
+  in the main usage example
+
+### Changed
+
+- README: rewrote the intro to drop the personal-project background, noting
+  the plugin is not an official Umami library and welcoming pull requests
+  for missing parts
+- README: moved module-format import guidance into Installation, merged the
+  `identifyUmamiSession` overloads under one heading, and moved the SPA
+  tracking guidance ahead of the API reference
 
 ## [1.6.0] - 2026-07-21
 
