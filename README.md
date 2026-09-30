@@ -16,6 +16,9 @@ This plugin is not an official Umami library.
 
 - Vue 3.x
 - Vue Router (optional, for automatic page tracking)
+- A browser environment: tracking only makes sense once the page has
+  rendered. For SSR frameworks such as Nuxt, register the plugin as a
+  client-only plugin
 
 ## Installation
 
