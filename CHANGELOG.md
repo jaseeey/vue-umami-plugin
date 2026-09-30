@@ -5,6 +5,44 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0]
+
+### Added
+
+- `getSession` on the typed `window.umami` surface (optional), matching the
+  current Umami script API
+- `tag` and `id` fields on `UmamiTrackPageViewOptions` so page view calls can
+  override Umami's experiment tag and distinct session identifier
+- README: `data-auto-pageview` (Umami v3.2) reference row and a
+  performance-tracking recipe that keeps the plugin's router as the page-view
+  source
+- README: declarative `data-umami-event` click tracking (including the
+  auto-tracking requirement) and how to exclude your own visits
+- README: `trackUmamiPageView` usage example and the `allowLocalhost` option
+  in the main usage example
+
+### Changed
+
+- README: rewrote the intro to drop the personal-project background, noting
+  the plugin is not an official Umami library and welcoming pull requests
+  for missing parts
+- README: moved module-format import guidance into Installation, merged the
+  `identifyUmamiSession` overloads under one heading, and moved the SPA
+  tracking guidance ahead of the API reference
+- README: documented that the plugin runs in the browser and should be
+  registered as client-only in SSR frameworks such as Nuxt
+
+## [1.6.1] - 2026-09-15
+
+### Added
+
+- GitHub Actions workflows for CI (install, audit, and test) and for
+  tag-triggered publishing to npm
+
+### Changed
+
+- Development dependencies: Vitest 5, jsdom 30, and TypeScript 5.9
+
 ## [1.6.0] - 2026-07-21
 
 Backward-compatible minor release. Existing public exports and option names from
@@ -136,6 +174,8 @@ default-behaviour updates worth scanning before upgrade.
 - Optional Vue Router integration for automatic page tracking
 - README documentation and MIT license
 
+[1.7.0]: https://github.com/jaseeey/vue-umami-plugin/compare/v1.6.1...v1.7.0
+[1.6.1]: https://github.com/jaseeey/vue-umami-plugin/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/jaseeey/vue-umami-plugin/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/jaseeey/vue-umami-plugin/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/jaseeey/vue-umami-plugin/compare/v1.4.0...v1.5.0

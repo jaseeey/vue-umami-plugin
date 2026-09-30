@@ -1,6 +1,6 @@
 {
   "name": "@jaseeey/vue-umami-plugin",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "description": "A plugin designed for Vue 3 which enables the use of Umami Analytics",
   "license": "MIT",
   "author": "Jason Ilicic <me@jasey.io>",
@@ -47,8 +47,9 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^5.0.1",
     "jsdom": "^30.0.1",
-    "typescript": "^5.9.3",
-    "vitest": "^5.0.1"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1",
+    "vue": "^3.5.43"
   },
   "scripts": {
     "clean": "node scripts/build/clean-dist.js",

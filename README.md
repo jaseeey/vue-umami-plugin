@@ -2,11 +2,7 @@
 
 The Vue Umami Plugin integrates Umami analytics by loading the library and injecting it into your application's DOM, allowing you to easily track page views and events.
 
-## Background and Scope
-
-This library was created to reduce duplication and streamline the integration of Umami analytics into a number of my personal Vue projects. Though, I decided to share it with the community in the hope that others may find it useful for similar purposes, either as-is, or as a starting point.
-
-Given its focused nature, the plugin has limitations and may lack functionality available through the official Umami library API.
+This plugin is not an official Umami library.
 
 ## Features
 
@@ -20,6 +16,9 @@ Given its focused nature, the plugin has limitations and may lack functionality 
 
 - Vue 3.x
 - Vue Router (optional, for automatic page tracking)
+- A browser environment: tracking only makes sense once the page has
+  rendered. For SSR frameworks such as Nuxt, register the plugin as a
+  client-only plugin
 
 ## Installation
 
@@ -29,14 +28,9 @@ To install and use this plugin, you can include the library via npm:
 npm install @jaseeey/vue-umami-plugin
 ```
 
-## Module Format Support (ESM + CJS)
-
-This library ships dual builds and uses conditional exports:
-
-- `dist/esm` for ESM consumers
-- `dist/cjs` for CommonJS consumers
-
-Consumers should always import from the package root. Runtime/module resolution will select the correct build automatically.
+The plugin ships dual builds (ESM and CommonJS) and uses conditional
+exports. Always import from the package root and module resolution will
+select the correct build automatically:
 
 ```javascript
 import { VueUmamiPlugin, trackUmamiEvent } from '@jaseeey/vue-umami-plugin';
@@ -65,6 +59,9 @@ app.use(
         websiteID: 'YOUR_UMAMI_WEBSITE_ID',
         scriptSrc: 'https://us.umami.is/script.js', // Optional
         router,
+        // Optional, defaults to false. When false, the plugin does not
+        // install on hosts whose hostname contains 'localhost'.
+        // allowLocalhost: false,
         // Optional, defaults to false. Keep false with a router so the
         // plugin's router.afterEach hook is the page-view source.
         // Enable true without a router to use Umami's native auto-tracking.
@@ -90,6 +87,16 @@ app.use(
 app.use(router).mount('#app');
 ```
 
+### Tracking Page Views
+
+To track a page view manually, for example when you are not using Vue Router:
+
+```javascript
+import { trackUmamiPageView } from '@jaseeey/vue-umami-plugin';
+
+trackUmamiPageView({ url: '/checkout', title: 'Checkout' });
+```
+
 ### Tracking Events
 
 To track custom events:
@@ -99,6 +106,45 @@ import { trackUmamiEvent } from '@jaseeey/vue-umami-plugin';
 
 trackUmamiEvent('button-click', { buttonName: 'subscribe' });
 ```
+
+### Declarative Event Tracking
+
+Instead of calling `trackUmamiEvent` from your code, you can add a
+`data-umami-event` attribute to any element and let Umami record the click:
+
+```html
+<button data-umami-event="Signup button">Sign up</button>
+```
+
+When the visitor clicks the button, Umami records an event named
+`Signup button`. Extra `data-umami-event-*` attributes are attached to the
+event as data:
+
+```html
+<button
+    data-umami-event="Signup button"
+    data-umami-event-source="footer"
+    data-umami-event-plan="pro"
+>
+    Sign up
+</button>
+```
+
+Event names are limited to 50 characters, and values added this way are
+stored as strings.
+
+> **Important:** declarative events rely on Umami's built-in click tracking,
+> so they only work when auto-tracking is enabled. With the plugin's default
+> of `autoTrack: false`, elements with `data-umami-event` are not tracked.
+>
+> For router-based apps, use the `data-auto-pageview` recipe in the
+> [Performance tracking (Core Web Vitals)](#performance-tracking-core-web-vitals)
+> section: it turns click tracking on while keeping your router as the
+> single page-view source.
+>
+> Avoid putting `data-umami-event` on in-app links: Umami takes over the
+> navigation and performs a full page load instead of letting Vue Router
+> handle it.
 
 ### Identifying Sessions
 
@@ -135,6 +181,13 @@ const umamiOptions: UmamiPluginOptions = {
 };
 
 app.use(VueUmamiPlugin(umamiOptions));
+```
+
+The `window.umami` global is also typed with the current Umami API surface,
+including `getSession()`, so direct access to the tracker type-checks:
+
+```typescript
+const { cache, website } = window.umami?.getSession?.() ?? {};
 ```
 
 #### Why `router` uses structural types (`UmamiRouterLike`)
@@ -195,6 +248,7 @@ the complete list.
 | `data-host-url`       | Send tracking data to a custom Umami host instead of where the script is served from.        | v2.0    |
 | `data-domains`        | Comma-separated list of domains the tracker is allowed to run on.                             | v2.0    |
 | `data-auto-track`     | Enable/disable Umami's built-in automatic tracking. **Defaults to `"false"`** (see below).   | v2.0    |
+| `data-auto-pageview`  | Disable automatic page view sends while keeping the rest of the tracker initialized (for example click tracking and performance). | v3.2    |
 | `data-tag`            | Group events under a named tag for filtering and A/B testing.                                 | v2.11   |
 | `data-exclude-search` | Omit URL search/query parameters from collected URLs.                                         | v2.11   |
 | `data-exclude-hash`   | Omit URL hash fragments from collected URLs.                                                  | v2.16   |
@@ -246,6 +300,29 @@ app.use(
 > page view twice, **omit the `router` option** and let Umami handle page views
 > when you turn auto-tracking on.
 
+Since Umami **v3.2**, `data-auto-pageview` offers a cleaner option for
+router-based apps: it disables only the automatic page view sends while the rest
+of the tracker (click tracking, Core Web Vitals) stays initialized. This keeps
+the plugin's `router.afterEach` hook as the single page-view source:
+
+```javascript
+app.use(
+    VueUmamiPlugin({
+        websiteID: 'YOUR_UMAMI_WEBSITE_ID',
+        router,
+        extraDataAttributes: {
+            'data-auto-track': 'true',
+            'data-auto-pageview': 'false',
+            'data-performance': 'true',
+        },
+    })
+);
+```
+
+On Umami versions before v3.2, `data-auto-pageview` has no effect, so fall back
+to the earlier example (auto-tracking on, router omitted) to avoid double-counted
+page views.
+
 ### Modifying or filtering payloads (`data-before-send`)
 
 `data-before-send` references the **name of a function on `window`**, which
@@ -271,6 +348,31 @@ app.use(
     })
 );
 ```
+
+### Excluding your own visits
+
+While developing, your own visits will still be recorded. To keep them out of
+your stats, set a flag in your browser's `localStorage` for the site:
+
+```javascript
+localStorage.setItem('umami.disabled', 1);
+```
+
+The flag applies per website, so set it for each site you want to exclude.
+Remove it to track your visits again:
+
+```javascript
+localStorage.removeItem('umami.disabled');
+```
+
+## Single-page application tracking
+
+The plugin defaults to `autoTrack: false` so Vue Router integration (via `router.afterEach`) remains the single source of truth for page views. This is the recommended configuration for most single-page applications.
+
+If you prefer Umami's built-in auto-tracking, consider the tradeoffs:
+
+- **With a router**: keep `autoTrack: false`. The plugin forwards every `afterEach` navigation, including browser history and hash navigation, so it has complete SPA coverage. If you set `autoTrack: true` as well, the router hook remains active to avoid missed page views, but Umami may also record History API navigation and duplicate those views.
+- **Without a router**: either set `autoTrack: true` and let Umami handle navigation via the History API, or keep `autoTrack: false` and call `trackUmamiPageView()` manually at navigation points.
 
 ## API Reference
 
@@ -298,7 +400,7 @@ Repeated successful installs keep the existing tracker configuration. A later in
 Manually tracks a page view with Umami, useful when you are not using Vue Router or need to trigger a view outside normal navigation.
 
 - **Parameters**
-    - `options` (Object, optional): A partial page view payload that can override values such as `url`, `title`, or `referrer`.
+    - `options` (Object, optional): A partial page view payload that can override values such as `url`, `title`, `referrer`, `tag`, or `id`.
 
 ### `trackUmamiEvent(event, eventParams)`
 
@@ -306,25 +408,15 @@ Sends a custom tracking event to Umami.
 
 - **Parameters**
     - `event` (String): The name of the event to track.
-    - `eventParams` (Object, optional): Additional parameters for the event; typically includes details like page URL or user actions.
+    - `eventParams` (Object, optional): Additional data to attach to the event, for example the name of the button clicked or the action taken.
 
-### `identifyUmamiSession(sessionData)`
-### `identifyUmamiSession(id, sessionData?)`
+### `identifyUmamiSession(sessionData)` / `identifyUmamiSession(id, sessionData?)`
 
 Identifies a user session with Umami.
 
 - **Parameters**
     - `id` (String, optional): A custom identifier for the session.
     - `sessionData` (Object): The session data to identify.
-
-## Single-page application tracking
-
-The plugin defaults to `autoTrack: false` so Vue Router integration (via `router.afterEach`) remains the single source of truth for page views. This is the recommended configuration for most single-page applications.
-
-If you prefer Umami's built-in auto-tracking, consider the tradeoffs:
-
-- **With a router**: keep `autoTrack: false`. The plugin forwards every `afterEach` navigation, including browser history and hash navigation, so it has complete SPA coverage. If you set `autoTrack: true` as well, the router hook remains active to avoid missed page views, but Umami may also record History API navigation and duplicate those views.
-- **Without a router**: either set `autoTrack: true` and let Umami handle navigation via the History API, or keep `autoTrack: false` and call `trackUmamiPageView()` manually at navigation points.
 
 ## Build and Packaging
 
@@ -353,7 +445,9 @@ npm pack
 
 ## Contributions
 
-You can contribute to this project by submitting a pull request or reporting issues in the issues section of this repository.
+You can contribute to this project by submitting a pull request or reporting
+issues in the issues section of this repository. If a part of Umami is missing
+from the plugin, a pull request adding it is welcome.
 
 ## License
 

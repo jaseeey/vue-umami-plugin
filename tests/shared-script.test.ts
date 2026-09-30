@@ -54,6 +54,7 @@ describe('shared Umami script', () => {
     });
 
     it('flushes a second module queue against an already loaded shared script', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
         const firstModule = await loadFreshPluginModule();
         firstModule.VueUmamiPlugin({
             websiteID: 'test-website-id',
@@ -84,5 +85,42 @@ describe('shared Umami script', () => {
         }).install();
 
         expect(track).toHaveBeenCalledWith('from-second-module', undefined);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('already injected'));
+    });
+
+    it('resets a second module install state when the shared pending script fails', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const firstModule = await loadFreshPluginModule();
+        firstModule.VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true
+        }).install();
+
+        const script = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        expect(script).not.toBeNull();
+
+        const secondModule = await loadFreshPluginModule();
+        secondModule.VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true
+        }).install();
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('already injected'));
+        if (!script) {
+            throw new Error('Expected the Umami script to be injected.');
+        }
+
+        script.dispatchEvent(new Event('error'));
+
+        expect(document.head.querySelector('script[data-umami-plugin]')).toBeNull();
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('failed to load'));
+
+        secondModule.VueUmamiPlugin({
+            websiteID: 'test-website-id',
+            allowLocalhost: true
+        }).install();
+
+        const freshScript = document.head.querySelector('script[data-umami-plugin]') as HTMLScriptElement | null;
+        expect(freshScript).not.toBeNull();
+        expect(freshScript).not.toBe(script);
     });
 });

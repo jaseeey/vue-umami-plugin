@@ -118,6 +118,10 @@ export type UmamiTrackPageViewOptions = {
     title?: string;
     /** Path or URL to record (for example `/checkout` or a full path with query). */
     url?: string;
+    /** Experiment or feature tag for the page view (normally taken from the script tag's `data-tag`). */
+    tag?: string;
+    /** Distinct session identifier for the page view (normally set via identify or `data-distinct-id`). */
+    id?: string;
 }
 
 type UmamiTrackPayload = Partial<UmamiTrackPageViewOptions>;
@@ -134,6 +138,16 @@ type UmamiTracker = {
     identify: {
         (sessionData: UmamiTrackSessionData): void;
         (id: string, sessionData?: UmamiTrackSessionData): void;
+    };
+    /**
+     * Returns the session cache token and website ID from the loaded tracker, as exposed by the current Umami
+     * script. Optional because older or self-hosted scripts may not provide it.
+     */
+    getSession?: () => {
+        /** Session cache token returned by the Umami gateway. */
+        cache?: string;
+        /** Umami website ID the tracker is configured with. */
+        website?: string;
     };
 }
 
