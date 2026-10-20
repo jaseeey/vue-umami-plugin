@@ -64,6 +64,7 @@
     "prepack": "npm run build",
     "test": "vitest run && npm run test:types",
     "test:types": "tsc -p tests/tsconfig.json",
+    "test:bundlers": "node scripts/test-bundlers.js",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   }
