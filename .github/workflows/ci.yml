@@ -34,8 +34,14 @@ jobs:
       - name: Audit dependencies
         run: npm audit
 
-      - name: Run tests
-        run: npm test
+      # RUN_BUNDLER_TESTS=1 enables the opt-in bundler and type-resolution
+      # matrix (tests/bundlers.test.ts) — the same gate the local release
+      # workflow requires before a version bump. Setup packs the repository
+      # and installs the latest vite, esbuild, webpack, and typescript into a
+      # throwaway consumer, so it also acts as a canary against upstream
+      # tooling drift.
+      - name: Run tests including bundler matrix
+        run: RUN_BUNDLER_TESTS=1 npm test
 
       - name: Build package
         run: npm run build
